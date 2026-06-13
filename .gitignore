@@ -1,0 +1,20 @@
+# Byte-compiled / optimized files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.session
+*.session-journal
+*.env
+.env.*
+*.db
+
+# Virtual environment
+botenv/
+.vscode
+
+# Your custom folders
+logs/
+docker-compose.yml
+data/
+tdl.db/
