@@ -6,11 +6,10 @@
 Before launching your services, you must define your secrets and configurations. The project uses a directory-based environment structure to keep production and development data isolated.
 
 * **Action:** Create your environment files in the `main/Environments/` directory.
-* **Production:** Create a file named `prod.env`.
-* **Development:** Create a file named `dev.env` for testing new features or secondary bots.
+* 📖 For detailed setup instructions, see the [Environment Configuration Guide](./docs/environment.md).
 
 > [!TIP]
-> **Check the Docs:** For a detailed breakdown of required variables and formatting, refer to the **README.md** located inside the `main/Environments/` folder.
+> **Check the Docs:** For detailed architecture and database design, see the [docs folder](./docs/).
 
 ---
 
