@@ -98,7 +98,7 @@ async def apply_spotify_postprocess(
                         async with session.get(cleaned_cover, timeout=12) as resp:
                             if resp.status == 200:
                                 temp_jpg = final_path + ".jpg"
-                                temp_mp3 = final_path + ".temp.mp3"
+                                temp_mp3 = final_path + ".tmp.mp3"
 
                                 content = await resp.read()
                                 with open(temp_jpg, "wb") as f:

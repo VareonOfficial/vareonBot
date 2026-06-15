@@ -151,7 +151,7 @@ async def save_cookie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await doc.get_file()
 
     # 👉 TEMP FILE FIRST (important)
-    temp_path = COOKIES_PATH / ".temp" / f"{vareon_id}_cookie.txt"
+    temp_path = COOKIES_PATH / ".tmp" / f"{vareon_id}_cookie.txt"
     os.makedirs(temp_path.parent, exist_ok=True)
     await file.download_to_drive(temp_path)
     logger.info(f"[COOKIE] Download complete: {temp_path} | size={os.path.getsize(temp_path)} bytes")

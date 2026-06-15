@@ -96,7 +96,6 @@ YT_COOKIE_VIDEO_ID=
 | `API_ID`             | ✅ Yes   | Your Telegram API ID. Get it from [my.telegram.org](https://my.telegram.org) |
 | `API_HASH`           | ✅ Yes   | Your Telegram API Hash. Same source as above                                |
 | `BOT_TOKEN`          | ✅ Yes   | Your main bot token from [@BotFather](https://t.me/BotFather)              |
-| `SUPPORT_BOT_TOKEN`  | ✅ Yes   | A second bot token used for support interactions                            |
 
 ---
 
@@ -132,10 +131,11 @@ YT_COOKIE_VIDEO_ID=
 
 ### Groups
 
-These are optional Telegram group/channel IDs used for specific bot features. Leave them empty if you don't need those features.
+These are **optional** Telegram group/channel IDs used for specific bot features. Leave them empty if you don't need those features.
 
 | Field                | Required | Description                                                        |
 | -------------------- | -------- | ------------------------------------------------------------------ |
+| `SUPPORT_BOT_TOKEN`  | ⬜ Optional   | A second bot token used for support interactions                            |
 | `SOS_GROUP_ID`       | ⬜ Optional | Group where support conversations are forwarded                 |
 | `SUPPORT_GROUP_ID`   | ⬜ Optional | Group where bug reports are stored                              |
 | `PRIVATE_GROUP_ID`   | ✅ Yes   | Private channel used internally for file operations (upload/download via tdl) |

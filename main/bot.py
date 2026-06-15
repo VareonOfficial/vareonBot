@@ -52,6 +52,7 @@ from main.config import (
     RENAME, MOVE_FOLDER, NEW_FOLDER, BOT_TOKEN, USERS_PATH, TELETHON_SESSION_TXT,
 )
 from vareon_analytics.vr_log import log_wrapper
+from vareon_analytics.export_data import handle_export_data
 from main.dir_update import (navigate_folder, navigate_back, show_download_folder_menu, handle_download_here_callback,
                              handle_folder_page_navigation)
 from infra.broadcast import broadcast_settings, broadcast_command, delete_broadcast, handle_broadcast_message, cancel_broadcast
@@ -612,6 +613,7 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("files", files))
     application.add_handler(CommandHandler("music", music))
     application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
+    application.add_handler(CommandHandler("export_data", handle_export_data))
     application.add_handler(CommandHandler("getid", getid_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("cookies", cookies))

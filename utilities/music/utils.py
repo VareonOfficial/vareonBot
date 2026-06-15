@@ -9,6 +9,7 @@ import state
 from telethon.tl.types import DocumentAttributeAudio, DocumentAttributeFilename
 import mimetypes
 from main.config import logger
+from vareon_analytics.vr_log import log_to_db
 
 import urllib.parse as up
 
@@ -168,7 +169,8 @@ async def update_progress(
     except Exception as exc:
         logger.debug("update_progress edit_text skipped: %s", exc)
 
-async def run_download(cmd, idx, total_tracks, progress_msg, task_id):
+async def run_download(cmd, idx, total_tracks, progress_msg, task_id,
+                       vareon_id=None, tg_user_id=None, tracks_completed=0):
     if "--newline" not in cmd:
         cmd.insert(1, "--newline")
 
@@ -177,6 +179,7 @@ async def run_download(cmd, idx, total_tracks, progress_msg, task_id):
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
+    start_time = asyncio.get_event_loop().time()
 
     last_update = 0
     converting_shown = False
@@ -271,11 +274,29 @@ async def run_download(cmd, idx, total_tracks, progress_msg, task_id):
     )
 
     await process.wait()
+
+    time_taken = round(asyncio.get_event_loop().time() - start_time, 2)
     error_text = "\n".join(error_lines)
 
     if process.returncode != 0:
         logger.error(f"[yt-dlp] rc={process.returncode}\n{error_text}")
 
+        if vareon_id and tg_user_id:
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=tg_user_id,
+                event_type="DOWNLOAD_ERROR",
+                function_name="run_download",
+                task_id=task_id,
+                details={
+                    "time_taken": time_taken,
+                    "tracks_completed": tracks_completed if total_tracks > 1 else 0,
+                    "track_index": idx,
+                    "total_tracks": total_tracks,
+                    "error_snippet": error_text[:300] if error_text else None,
+                },
+                action_status={"status": "error", "return_code": process.returncode},
+            )
     return process.returncode, error_text
 
 async def upload_song_to_telegram(chat_id, file_path, title, artist, user_id, upload_msg, context):

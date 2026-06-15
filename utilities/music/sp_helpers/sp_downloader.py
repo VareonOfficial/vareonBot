@@ -76,7 +76,7 @@ async def scrape_spotify_to_youtube(
         filename    = f"{safe_title} - {safe_artist}.mp3"
 
         if target == "music_on_telegram":
-            temp_path  = os.path.abspath(f"{USERS_PATH}/{vareon_id}/.temp")
+            temp_path  = os.path.abspath(f"{USERS_PATH}/{vareon_id}/.tmp")
             os.makedirs(temp_path, exist_ok=True)
             final_path = os.path.join(temp_path, filename)
         else:

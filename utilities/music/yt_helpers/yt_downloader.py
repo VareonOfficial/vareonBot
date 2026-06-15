@@ -4,6 +4,7 @@ from typing import Optional
 from main.config import logger, USERS_PATH, COOKIES_PATH
 from utilities.music.utils import run_download, update_progress 
 from utilities.music.yt_helpers.ytmetadata import apply_youtube_postprocess
+from vareon_analytics.vr_log import log_to_db
 
 async def scrape_youtube_to_download(
     link,
@@ -19,7 +20,7 @@ async def scrape_youtube_to_download(
     running_tasks = running_tasks or {}
     youtube_cookie_path = COOKIES_PATH / "youtube" / f"{vareon_id}.txt"
     if target == "music_on_telegram":
-        temp_path = os.path.abspath(f"{USERS_PATH}/{vareon_id}/.temp")
+        temp_path = os.path.abspath(f"{USERS_PATH}/{vareon_id}/.tmp")
         os.makedirs(temp_path, exist_ok=True)
         download_path = temp_path
     else:
@@ -83,21 +84,45 @@ async def scrape_youtube_to_download(
         out, _ = await proc.communicate()
         ids = out.decode().strip().splitlines()
         total = len(ids)
+        
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=update.effective_user.id,
+            event_type="MUSIC_INFO",
+            function_name="scrape_youtube_to_download",
+            task_id=task_id,
+            details={
+                "path": download_path,
+                "url": link,
+                "type": "youtube_playlist",
+                "num_tracks": total,
+            },
+            action_status={"status": "in_progress"},
+        )
+
 
         if total == 0:
             await update_progress(progress_msg, "❌ Playlist empty.", remove_keyboard=True, task_id=task_id, running_tasks=running_tasks)
             return final_links
 
+        completed = 0
+        tasks_fired = 0
         for idx, vid in enumerate(ids, 1):
-            # ── Cancellation check ──────────────────────────────────────────
             if running_tasks.get(task_id, {}).get("cancelling"):
-                logger.info("[MUSIC YT] Task %s cancelled — stopping playlist loop", task_id)
                 break
 
             video_url = f"https://www.youtube.com/watch?v={vid}"
             cmd = base_cmd + [video_url]
 
-            rc, err = await run_download(cmd, idx, total, progress_msg, task_id)
+            rc, err = await run_download(
+                cmd, idx, total, progress_msg, task_id,
+                vareon_id=vareon_id,
+                tg_user_id=update.effective_user.id,
+                tracks_completed=completed,
+            )
+
+            if rc == 0:
+                completed += 1
 
             if rc != 0:
                 continue
@@ -130,6 +155,7 @@ async def scrape_youtube_to_download(
                         update=update,
                     )
                 )
+                tasks_fired += 1
             else:
                 files = [f for f in os.listdir(download_path) if f.startswith(f"{task_id}_") and f.endswith(".mp3")]
                 files.sort(key=lambda f: os.path.getctime(os.path.join(download_path, f)), reverse=True)
@@ -138,12 +164,69 @@ async def scrape_youtube_to_download(
                     new_path = os.path.join(download_path, f[len(f"{task_id}_"):])
                     os.rename(old_path, new_path)
                     final_links.append(new_path)
+                    
+        # ── After loop, one single log ──────────────────────────────────
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=update.effective_user.id,
+            event_type="DOWNLOAD_SESSION_COMPLETE",
+            function_name="scrape_youtube_to_download",
+            task_id=task_id,
+            details={
+                "tracks_completed": completed,
+                "tracks_in_total": total,
+                "type": "youtube_playlist",
+            },
+            action_status={"status": "success"},
+        )
+        if tasks_fired > 0:
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=update.effective_user.id,
+                event_type="UPLOAD_SESSION_FIRED",
+                function_name="scrape_youtube_to_download",
+                task_id=task_id,
+                details={
+                    "tracks_fired":    tasks_fired,
+                    "tracks_in_total": total,
+                },
+                action_status={"status": "dispatched"},
+            )
+        
 
     else:
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=update.effective_user.id,
+            event_type="MUSIC_INFO",
+            function_name="scrape_youtube_to_download",
+            task_id=task_id,
+            details={
+                "path": download_path,
+                "url": link,
+                "type": "youtube_single",
+                "num_tracks": "1",
+            },
+            action_status={"status": "in_progress"},
+        )
         cmd = base_cmd + [link]
-        rc, err = await run_download(cmd, 1, 1, progress_msg, task_id)
+        rc, err = await run_download(
+            cmd, 1, 1, progress_msg, task_id,
+            vareon_id=vareon_id,
+            tg_user_id=update.effective_user.id,)
 
         if rc == 0:
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=update.effective_user.id,
+                event_type="DOWNLOAD_COMPLETE",
+                function_name="scrape_youtube_to_download",
+                task_id=task_id,
+                details={
+                    "type": "youtube_single",
+                },
+                action_status={"status": "success"},
+            )
             if target == "music_on_telegram":
                 files = [f for f in os.listdir(temp_path) if f.startswith(f"{task_id}_") and f.endswith(".mp3")]
 
@@ -168,6 +251,19 @@ async def scrape_youtube_to_download(
                     artist=artist,
                     context=context,
                     update=update,
+                )
+
+                log_to_db(
+                    vareon_id=vareon_id,
+                    tg_user_id=update.effective_user.id,
+                    event_type="UPLOAD_SESSION_COMPLETE",
+                    function_name="scrape_youtube_to_download",
+                    task_id=task_id,
+                    details={
+                        "tracks_uploaded": 1,
+                        "type": "youtube_single",
+                    },
+                    action_status={"status": "success"},
                 )
             else:
                 files = [f for f in os.listdir(download_path) if f.startswith(f"{task_id}_") and f.endswith(".mp3")]
