@@ -236,6 +236,15 @@ async def set_download_location(update: Update, context: ContextTypes.DEFAULT_TY
     current_path = context.user_data["path_stack"][-1]
     mode = context.user_data.get("current_mode")
 
+    # Delete the shorts prompt message if it exists, to avoid clutter
+    shorts_prompt_msg_id = context.user_data.pop("shorts_prompt_msg_id", None)
+    if shorts_prompt_msg_id:
+        try:
+            await context.bot.delete_message(query.message.chat_id, shorts_prompt_msg_id)
+        except Exception as e:
+            logger.warning("[DIR] Could not delete shorts prompt msg: %s", e)
+
+
     # 🔥 1. DEFAULT PATH SETTING FLOW
     if mode == "set_default":
         try:
@@ -293,7 +302,7 @@ async def handle_download_here_callback(update: Update, context: ContextTypes.DE
 
     # 🔹 2. LINK DOWNLOAD
     elif mode == "link_download_select":
-        from utilities.links.links import download_button_handler        
+        from utilities.links.links import download_button_handler    
         await download_button_handler(update, context)
         return
 

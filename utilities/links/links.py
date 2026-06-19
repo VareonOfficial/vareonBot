@@ -1,5 +1,7 @@
 import os
 import sqlite3
+
+from tcod import context
 from main.config import VAREON_DB
 import uuid
 import re
@@ -17,6 +19,7 @@ from main.utils import (
 from main.state import download_tasks, sessions, report_mode, download_tasks
 from main.config import USERS_PATH, logger
 from utilities.links.direct_link_progress import download_file_with_progress
+from utilities.links.yt_shorts import handle_shorts_download, show_shorts_upload_prompt
 from utilities.yt_dlp import show_youtube_quality_menu
 from vareon_analytics.vr_log import log_to_db, generate_task_id
 ################################
@@ -179,8 +182,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"[HANDLE_LINK] Failed to fetch file info: {e}")
             await update.message.reply_text(f"❌ Failed to fetch file info:\n{e}")
             return
-    await show_download_folder_menu(update, context)  
-
+    msg1 = await show_download_folder_menu(update, context)  
+    msg2 = await show_shorts_upload_prompt(update, context)
+    context.user_data["folder_menu_msg_id"] = msg1.message_id
+    context.user_data["shorts_prompt_msg_id"] = msg2.message_id
+    
 def file_exists_in_dir(download_path: str, base_name: str) -> str | None:
     """
     Returns matched filename if exists, else None
@@ -262,7 +268,7 @@ async def download_button_handler(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     user_id = query.from_user.id
     await query.answer()
-
+    
     data = query.data
     logger.info(f"[DOWNLOAD_BUTTON_HANDLER] Callback query from user {user_id}: {data}")
     is_youtube = context.user_data.get("youtube_mode", False)
@@ -272,7 +278,13 @@ async def download_button_handler(update: Update, context: ContextTypes.DEFAULT_
         logger.warning(f"[DOWNLOAD_BUTTON_HANDLER] Duplicate start attempt from user {user_id}")
         await query.answer("⚠️ Download already in progress", show_alert=True)
         return
-    
+    if data == "download_here_tg":
+        logger.info(f"[DOWNLOAD_BUTTON_HANDLER] User {user_id} selected download here (Telegram)")
+        if context.user_data.get("shorts_url"):
+            logger.info(f"[DOWNLOAD_BUTTON_HANDLER] Shorts URL detected for user {user_id}")
+            await handle_shorts_download(update=update, context=context)
+            return
+        
     if data == "download_here_local":
         logger.info(f"[DOWNLOAD_BUTTON_HANDLER] User {user_id} selected download here")
         await set_download_location(update, context)
