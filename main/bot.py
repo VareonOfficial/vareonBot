@@ -25,7 +25,7 @@ from search_config.moviesmod import handle_episode_range
 from search_config.bollyflix import choose_bollyflix_result
 from search_config.gamesleech import handle_gamesleech_zip, handle_gamesleech_parts
 
-from utilities.music.music import music
+from utilities.music.music import music, music_search_pick_callback
 from report.report import report_command, report_buttons
 from report.report_history import view_report_details, report_history, delete_report_handler
 from report.send_report import handle_report_message, handle_report_subject, finish_report, handle_priority_selection
@@ -734,6 +734,7 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(cancel_broadcast, pattern="^cancel_broadcast$"))
     application.add_handler(CallbackQueryHandler(refresh_storage, pattern="^refresh_storage$"))
     application.add_handler(CallbackQueryHandler(youtube_quality_callback, pattern="^yt_quality\\|.*$"))
+    application.add_handler(CallbackQueryHandler(music_search_pick_callback, pattern=r"^music_search_pick:"))
 
 ################################
 # Error Handler

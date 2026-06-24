@@ -371,7 +371,14 @@ async def handle_download_here_callback(update: Update, context: ContextTypes.DE
         context.user_data.pop("path_stack", None)
         context.user_data.pop("path_map", None)
         
-        await query.message.delete()
+        for msg_id in context.user_data.pop("music_ui_messages", []):
+            try:
+                await context.bot.delete_message(
+                    chat_id=query.message.chat_id,
+                    message_id=msg_id
+                )
+            except Exception:
+                pass
 
         task = asyncio.create_task(
             start_music_download(
