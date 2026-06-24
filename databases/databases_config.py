@@ -204,6 +204,14 @@ def run_migrations(cursor):
                 UNIQUE(vareon_id, tg_user_id, year)
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pending_uploads (
+                vareon_id TEXT NOT NULL,
+                telegram_id TEXT NOT NULL,
+                uuid TEXT PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         set_db_version(cursor, 4)
 # ==============================
 # 🔹 Initialize DB

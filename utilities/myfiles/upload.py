@@ -8,14 +8,34 @@ Queue management is fully delegated to tdl_queue.py.
 import os
 import time
 import re
+import uuid
+import sqlite3
 import asyncio
 from telegram import InlineKeyboardMarkup
-from main.config import logger, STORAGE_PATH, PRIVATE_GROUP_ID
+from main.config import logger, STORAGE_PATH, PRIVATE_GROUP_ID, VAREON_DB
 from main.utils import format_size
 from utilities.files.tdl_queue import queue_tdl_task
 
 
-async def run_tdl_upload(progress_msg, path, file_name, context, user_id):
+def _init_pending_uploads_table():
+    """Ensure pending_uploads table exists."""
+    conn = sqlite3.connect(VAREON_DB)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pending_uploads (
+            uuid TEXT PRIMARY KEY,
+            vareon_id TEXT NOT NULL,
+            telegram_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+_init_pending_uploads_table()
+
+
+async def run_tdl_upload(progress_msg, path, file_name, context, user_id, vareon_id=None):
     """
     Public entry-point for uploads.
     Prepares the file, then hands control to the shared tdl queue.
@@ -43,6 +63,23 @@ async def run_tdl_upload(progress_msg, path, file_name, context, user_id):
         await progress_msg.edit_text("❌ Failed to prepare file for upload.")
         return
 
+    # ── Generate UUID and register in DB ──────────────────────────────────────
+    upload_uuid = str(uuid.uuid4())
+    try:
+        conn = sqlite3.connect(VAREON_DB)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO pending_uploads (uuid, vareon_id, telegram_id) VALUES (?, ?, ?)",
+            (upload_uuid, vareon_id or "", str(user_id)),
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"[UPLOAD] Registered pending upload | uuid={upload_uuid} | user={user_id}")
+    except Exception as e:
+        logger.error(f"[UPLOAD] Failed to register pending upload in DB: {e}")
+        await progress_msg.edit_text("❌ Failed to prepare upload. Please try again.")
+        return
+
     # ── Hand off to the shared queue ──────────────────────────────────────────
     async def _upload_task(cancel_btn: InlineKeyboardMarkup):
         await _do_upload(
@@ -55,6 +92,8 @@ async def run_tdl_upload(progress_msg, path, file_name, context, user_id):
             total_size=total_size,
             context=context,
             user_id=user_id,
+            vareon_id=vareon_id,
+            upload_uuid=upload_uuid,
             cancel_btn=cancel_btn,
         )
 
@@ -69,14 +108,12 @@ async def run_tdl_upload(progress_msg, path, file_name, context, user_id):
 
 
 # ── Private: actual upload logic (runs only when lock is held) ────────────────
-
 async def _do_upload(
     progress_msg, path, file_name,
     original_file_path, temp_file_name, temp_file_path,
-    total_size, context, user_id, cancel_btn,
+    total_size, context, user_id, vareon_id, upload_uuid, cancel_btn,
 ):
     GROUP_ID = str(PRIVATE_GROUP_ID).replace("-100", "")
-
     cmd = [
         "tdl", "up",
         "-p", temp_file_path,
@@ -85,7 +122,7 @@ async def _do_upload(
         "--threads", "16",
         "--pool", "0",
         "--limit", "8",
-        "--caption", f'"User: {user_id} | " + FileName',
+        "--caption", f'"User: {user_id} | UUID: {upload_uuid}"',
     ]
 
     logger.info(f"Starting upload: {temp_file_name} (original: {file_name})")
@@ -159,6 +196,7 @@ async def _do_upload(
 
             if eta_match:
                 eta = eta_match.group(1).strip()
+
             now = time.time()
             if percent > 0 and now - last_update >= 1.8:
                 try:
@@ -202,8 +240,25 @@ async def _do_upload(
             logger.error(f"Failed to restore original filename: {e}")
 
         if returncode == 0 and upload_started:
-            await _forward_uploaded_file(progress_msg, context, user_id, file_name)
+            await _forward_uploaded_file(
+                progress_msg=progress_msg,
+                context=context,
+                user_id=user_id,
+                vareon_id=vareon_id,
+                upload_uuid=upload_uuid,
+                file_name=file_name,
+            )
         else:
+            # Clean up DB row since upload never completed
+            try:
+                conn = sqlite3.connect(VAREON_DB)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM pending_uploads WHERE uuid = ?", (upload_uuid,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+
             error_msg = (
                 "❌ Upload did not start (check tdl installation)"
                 if not upload_started else "❌ Upload failed or was cancelled"
@@ -214,28 +269,21 @@ async def _do_upload(
             )
 
 
-async def _forward_uploaded_file(progress_msg, context, user_id, file_name):
+async def _forward_uploaded_file(progress_msg, context, user_id, vareon_id, upload_uuid, file_name):
     """
-    Finds the just-uploaded message in the private group and forwards it to
-    the user, then deletes it from the group.
-
-    Strategy:
-    - Use Telethon (iter_messages) to find the message — no pyro_user_client needed.
-    - Use copy_message for ALL media types (document, video, audio, animation).
-      send_document was causing 'Wrong file identifier' because tdl uploads
-      .mp4 files as Video type, and PTB rejects video file_ids in send_document.
-    - copy_message works regardless of media type and preserves the file as-is.
+    Finds the just-uploaded message in the private group by UUID in caption,
+    verifies it belongs to the right user via DB (telegram_id + vareon_id),
+    forwards to user, deletes from group, and cleans up DB row.
     """
-    logger.info("✅ Upload complete — locating message in group...")
+    logger.info(f"✅ Upload complete — locating message | uuid={upload_uuid}")
 
     try:
-        import state  # This is not an error if it shows in Yellow colour
+        import state
         u_client = state.telethon_user_client
         g_id = state.PRIVATE_GROUP_ID
-        user_chat_id = user_id
 
-        if not user_chat_id:
-            logger.error("user_chat_id not found in context")
+        if not user_id:
+            logger.error("user_id is None in _forward_uploaded_file")
             await progress_msg.edit_text(
                 "Oops, we hit a snag! 🛠\n\n"
                 "Please let the team know by sending a `/report` with a quick "
@@ -247,18 +295,26 @@ async def _forward_uploaded_file(progress_msg, context, user_id, file_name):
         # Wait briefly for Telegram to register the message
         await asyncio.sleep(3)
 
-        # Scan recent messages by recency — no search index needed
+        # ── Search by UUID in caption — guaranteed unique, no filename issues ──
         found_msg_id = None
-        file_name_no_ext = os.path.splitext(file_name)[0]
 
         async for message in u_client.iter_messages(g_id, limit=20):
-            cap = message.message or ""  # Telethon uses .message not .caption
-            if file_name_no_ext in cap and f"User: {user_id}" in cap:
+            cap = message.message or ""
+            if f"UUID: {upload_uuid}" in cap and f"User: {user_id}" in cap:
                 found_msg_id = message.id
                 break
 
         if found_msg_id is None:
-            logger.error(f"Could not find uploaded message for {user_id} after retries")
+            logger.error(f"[UPLOAD] Could not find message for uuid={upload_uuid} user={user_id}")
+            # Clean up DB row
+            try:
+                conn = sqlite3.connect(VAREON_DB)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM pending_uploads WHERE uuid = ?", (upload_uuid,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
             await progress_msg.edit_text(
                 "Oops, we hit a snag! 🛠\n\n"
                 "Please let the team know by sending a `/report` with a quick "
@@ -267,12 +323,63 @@ async def _forward_uploaded_file(progress_msg, context, user_id, file_name):
             )
             return
 
+        # ── Verify ownership via DB (telegram_id + vareon_id double check) ────
+        try:
+            conn = sqlite3.connect(VAREON_DB)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT telegram_id, vareon_id FROM pending_uploads WHERE uuid = ?",
+                (upload_uuid,),
+            )
+            row = cursor.fetchone()
+            conn.close()
+        except Exception as e:
+            logger.error(f"[UPLOAD] DB verification failed: {e}")
+            row = None
+
+        if row is None:
+            logger.error(f"[UPLOAD] UUID {upload_uuid} not found in DB — possible duplicate forward attempt")
+            await progress_msg.edit_text(
+                "Oops, we hit a snag! 🛠\n\n"
+                "Please let the team know by sending a `/report` with a quick "
+                "description so we can get this sorted for you.",
+                parse_mode="Markdown",
+            )
+            return
+
+        db_telegram_id, db_vareon_id = row
+
+        # Verify telegram_id matches
+        if str(db_telegram_id) != str(user_id):
+            logger.error(
+                f"[UPLOAD] telegram_id mismatch! DB={db_telegram_id} vs actual={user_id} | uuid={upload_uuid}"
+            )
+            await progress_msg.edit_text(
+                "Oops, we hit a snag! 🛠\n\n"
+                "Please let the team know by sending a `/report` with a quick "
+                "description so we can get this sorted for you.",
+                parse_mode="Markdown",
+            )
+            return
+
+        # Verify vareon_id as 2nd layer
+        if vareon_id and str(db_vareon_id) != str(vareon_id):
+            logger.error(
+                f"[UPLOAD] vareon_id mismatch! DB={db_vareon_id} vs actual={vareon_id} | uuid={upload_uuid}"
+            )
+            await progress_msg.edit_text(
+                "Oops, we hit a snag! 🛠\n\n"
+                "Please let the team know by sending a `/report` with a quick "
+                "description so we can get this sorted for you.",
+                parse_mode="Markdown",
+            )
+            return
+
+        logger.info(f"[UPLOAD] Ownership verified | uuid={upload_uuid} | user={user_id} | vareon={vareon_id}")
+
         # ── Forward to user via copy_message ──────────────────────────────────
-        # copy_message works for ALL media types (document, video, audio, etc.)
-        # and avoids the 'Wrong file identifier' error that send_document raises
-        # when given a video/audio file_id instead of a document file_id.
         await context.bot.copy_message(
-            chat_id=user_chat_id,
+            chat_id=user_id,
             from_chat_id=g_id,
             message_id=found_msg_id,
             caption="",
@@ -281,6 +388,18 @@ async def _forward_uploaded_file(progress_msg, context, user_id, file_name):
 
         # ── Clean up group message ─────────────────────────────────────────────
         await u_client.delete_messages(g_id, found_msg_id)
+
+        # ── Delete DB row — job done ───────────────────────────────────────────
+        try:
+            conn = sqlite3.connect(VAREON_DB)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pending_uploads WHERE uuid = ?", (upload_uuid,))
+            conn.commit()
+            conn.close()
+            logger.info(f"[UPLOAD] Cleared pending_uploads row | uuid={upload_uuid}")
+        except Exception as e:
+            logger.warning(f"[UPLOAD] Failed to delete DB row for uuid={upload_uuid}: {e}")
+
         try:
             await progress_msg.delete()
         except Exception:
@@ -288,6 +407,15 @@ async def _forward_uploaded_file(progress_msg, context, user_id, file_name):
 
     except Exception as e:
         logger.error(f"Forward error: {e}", exc_info=True)
+        # Best effort DB cleanup on unexpected error
+        try:
+            conn = sqlite3.connect(VAREON_DB)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pending_uploads WHERE uuid = ?", (upload_uuid,))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
         try:
             await progress_msg.edit_text(
                 "Oops, we hit a snag! 🛠️\n\n"

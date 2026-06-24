@@ -206,7 +206,6 @@ async def apply_spotify_postprocess(
     # ── Upload — OUTSIDE semaphore, no reason to hold it ────────────
     if target == "music_on_telegram":
         await upload_song_to_telegram(
-            chat_id=update.effective_chat.id,
             file_path=final_path,
             title=title,
             artist=artist,

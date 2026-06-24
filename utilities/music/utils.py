@@ -4,8 +4,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from main.config import logger
 import time
 from typing import Optional
-from utilities.music.fast_telethon import upload_file as fast_upload_file
-import state
+from utilities.myfiles.upload import run_tdl_upload
 from telethon.tl.types import DocumentAttributeAudio, DocumentAttributeFilename
 import mimetypes
 from main.config import logger
@@ -299,114 +298,82 @@ async def run_download(cmd, idx, total_tracks, progress_msg, task_id,
             )
     return process.returncode, error_text
 
-async def upload_song_to_telegram(chat_id, file_path, title, artist, user_id, upload_msg, context):
-    last_print = [0]
-    start_time = [time.time()]
-
-    async def update_progress(current, total):
-        now = time.time()
-        if now - last_print[0] < 2:
-            return
-        last_print[0] = now
-
-        percent   = (current / total) * 100
-        bar       = "▪️" * int(percent // 10) + "▫️" * (10 - int(percent // 10))
-        elapsed   = now - start_time[0]
-        speed     = current / elapsed if elapsed > 0 else 0
-        speed_str = f"{speed/1024/1024:.2f} MB/s" if speed >= 1024*1024 else f"{speed/1024:.1f} KB/s"
-        eta       = (total - current) / speed if speed > 0 else 0
-        eta_str   = f"{int(eta//3600):01}:{int((eta%3600)//60):02}:{int(eta%60):02}"
-        nonlocal upload_msg
-        if upload_msg:
-            try:
-                await upload_msg.edit_text(
-                    f"⬆️ Uploading to Telegram\n"
-                    f"Progress: {percent:.1f}%\n"
-                    f"{bar}\n"
-                    f"📊 {current/1024/1024:.2f}MB of {total/1024/1024:.2f}MB\n"
-                    f"🚀 Speed: {speed_str}\n"
-                    f"⏳ ETA: {eta_str}"
-                )
-            except:
-                pass
-        else:
-            try:
-                upload_msg = await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=(
-                        f"⬆️ Uploading to Telegram\n"
-                        f"Progress: {percent:.1f}%\n"
-                        f"{bar}\n"
-                        f"📊 {current/1024/1024:.2f}MB of {total/1024/1024:.2f}MB\n"
-                        f"🚀 Speed: {speed_str}\n"
-                        f"⏳ ETA: {eta_str}"
-                    )
-                )
-            except:
-                upload_msg = None
+async def upload_song_to_telegram(file_path, title, artist, user_id, upload_msg, context, vareon_id=None, task_id=None):
+    upload_start = time.time()
+    file_name = os.path.basename(file_path)
+    tmp_dir = os.path.dirname(file_path)
+    size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
 
     try:
-        logger.info(f"Uploading: {title} - {artist}")
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="UPLOAD_STARTED",
+            function_name="upload_song_to_telegram",
+            task_id=task_id,
+            details={"file_name": file_name, "title": title, "artist": artist, "size_bytes": size_bytes},
+            action_status={"status": "in_progress"},
+        )
+        logger.info("[MUSIC] UPLOAD_STARTED | %s - %s", title, artist)
 
-        filename  = os.path.basename(file_path)
-        mime_type, _ = mimetypes.guess_type(file_path)
-        mime_type = mime_type or "audio/mpeg"
-
-        with open(file_path, "rb") as f:
-            uploaded = await fast_upload_file(
-                client=state.telethon_user_client,
-                file=f,
-                progress_callback=update_progress,
-            )
-
-        caption = f"{title}\nUser: {user_id}"
-        sent = await state.telethon_user_client.send_file(
-            entity=state.PRIVATE_GROUP_ID,
-            file=uploaded,
-            caption=caption,
-            attributes=[
-                DocumentAttributeAudio(duration=0, title=title, performer=artist),
-                DocumentAttributeFilename(filename),
-            ],
-            mime_type=mime_type,
+        await run_tdl_upload(
+            progress_msg=upload_msg,
+            path=tmp_dir,
+            file_name=file_name,
+            context=context,
+            user_id=user_id,
+            vareon_id=vareon_id,
         )
 
-        logger.info(f"✅ Uploaded to private group (msg_id={sent.id}), copying to user...")
-        await asyncio.sleep(2)
+        upload_duration = int(time.time() - upload_start)
+        size_mb = size_bytes / 1024 / 1024
 
-        found_msg_id = None
-        async for message in state.telethon_user_client.iter_messages(state.PRIVATE_GROUP_ID, limit=20):
-            cap = message.message or ""
-            if title in cap and f"User: {user_id}" in cap:
-                found_msg_id = message.id
-                break
+        logger.info(
+            "[MUSIC] ✅ Upload done | %s - %s | %.1fMB in %ds",
+            title, artist, size_mb, upload_duration,
+        )
 
-        if found_msg_id:
-            await context.bot.copy_message(
-                chat_id=chat_id,
-                from_chat_id=state.PRIVATE_GROUP_ID,
-                message_id=found_msg_id,
-                caption="",
-            )
-            await state.telethon_user_client.delete_messages(state.PRIVATE_GROUP_ID, found_msg_id)
-        else:
-            logger.warning(f"Could not find uploaded message for user {user_id}")
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="UPLOAD_COMPLETE",
+            function_name="upload_song_to_telegram",
+            task_id=task_id,
+            details={
+                "file_name": file_name,
+                "title": title,
+                "artist": artist,
+                "size_bytes": size_bytes,
+                "time_taken": upload_duration,
+            },
+            action_status={"status": "success", "latency": f"{upload_duration}s"},
+        )
+        logger.info("[MUSIC] UPLOAD_COMPLETE logged | duration=%ds", upload_duration)
 
-        # ── Delete progress message after file is sent ───────────────
         try:
             await upload_msg.delete()
         except Exception:
             pass
 
-        elapsed_total = time.time() - start_time[0]
-        size_mb = os.path.getsize(file_path) / 1024 / 1024
-        logger.info(f"✅ Done → {title} | {size_mb:.1f}MB in {elapsed_total:.1f}s @ {size_mb/elapsed_total:.2f} MB/s")
-        os.remove(file_path)
+        try:
+            os.remove(file_path)
+        except Exception:
+            pass
 
-    except Exception as e:
+    except Exception as exc:
+        upload_duration = int(time.time() - upload_start)
+        logger.exception("[MUSIC] Upload failed:")
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="UPLOAD_ERROR",
+            function_name="upload_song_to_telegram",
+            task_id=task_id,
+            details={"file_name": file_name, "title": title, "artist": artist, "error": str(exc), "time_taken": upload_duration},
+            action_status={"status": "error", "latency": f"{upload_duration}s"},
+        )
         try:
             await upload_msg.edit_text("❌ Upload failed. Please try again.")
         except Exception:
             pass
-        logger.error(f"❌ Upload failed: {e}")
         raise

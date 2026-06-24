@@ -35,7 +35,6 @@ async def apply_youtube_postprocess(
 
     try:
         await upload_song_to_telegram(
-            chat_id=update.effective_chat.id,
             file_path=final_path,
             title=title,
             artist=artist,

@@ -742,6 +742,8 @@ def setup_handlers(application: Application) -> None:
 
 async def error_handler(update: Update, context: CallbackContext) -> None:
     """Log errors caused by updates."""
+    if update and update.channel_post:
+        return
     logger.error('Update "%s" caused error "%s"', update, context.error)
     if update.callback_query:
         await update.callback_query.answer("An error occurred. Please try again.")

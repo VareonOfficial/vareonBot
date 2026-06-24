@@ -458,14 +458,13 @@ async def _upload_short_to_telegram(
 
         tmp_dir = os.path.dirname(file_path)
 
-        # run_tdl_upload handles progress display, group upload, forward to user,
-        # and cleanup of the group message — same as the regular file upload flow
         await run_tdl_upload(
             progress_msg=status_msg,
             path=tmp_dir,
             file_name=file_name,
             context=context,
             user_id=user_id,
+            vareon_id=vareon_id,
         )
 
         upload_duration = int(time.time() - upload_start)
