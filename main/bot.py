@@ -25,26 +25,26 @@ from search_config.moviesmod import handle_episode_range
 from search_config.bollyflix import choose_bollyflix_result
 from search_config.gamesleech import handle_gamesleech_zip, handle_gamesleech_parts
 
-from utilities.music.music import music, music_search_pick_callback
+from features.music.music import music, music_search_pick_callback
 from report.report import report_command, report_buttons
 from report.report_history import view_report_details, report_history, delete_report_handler
 from report.send_report import handle_report_message, handle_report_subject, finish_report, handle_priority_selection
 from report.chat import handle_admin_reply, start_user_reply, finish_user_reply
-from utilities.cancel.cancel import cancel_process
-from utilities.links.links import link_handler, download_button_handler
-from utilities.links.pause_resume import resume_download, pause_download
-from utilities.yt_dlp import youtube_quality_callback
-from utilities.myfiles.myfiles import myfiles, myfiles_callback
-from utilities.myfiles.browse import page_next, page_prev
-from utilities.myfiles.select_actions import (start_rename, handle_rename_input, cancel_generated_link, 
+from features.cancel.cancel import cancel_process
+from features.links.links import link_handler, download_button_handler
+from features.links.pause_resume import resume_download, pause_download
+from features.yt_dlp import youtube_quality_callback
+from features.myfiles.myfiles import myfiles, myfiles_callback
+from features.myfiles.browse import page_next, page_prev
+from features.myfiles.select_actions import (start_rename, handle_rename_input, cancel_generated_link, 
 handle_new_folder_input, start_new_folder)
-from utilities.myfiles.move import (start_move_folder, navigate_move_folder, navigate_move_back, move_here, move_page_prev,
+from features.myfiles.move import (start_move_folder, navigate_move_folder, navigate_move_back, move_here, move_page_prev,
 move_page_next)
-from utilities.myfiles.utils import handle_reply_name
-from utilities.files.files import handle_file, files
-from utilities.cookies.set_cookies import cookies, cookies_menu, save_cookie
-from utilities.stats import stats_command, close_stats
-from utilities.storage import storage, refresh_storage
+from features.myfiles.utils import handle_reply_name
+from features.files.files import handle_file, files
+from features.cookies.set_cookies import cookies, cookies_menu, save_cookie
+from features.stats import stats_command, close_stats
+from features.storage import storage, refresh_storage
 from main.state import sessions
 from main.utils import cache_file_id, getid_command
 from main.config import (

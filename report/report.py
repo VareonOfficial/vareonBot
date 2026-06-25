@@ -9,7 +9,7 @@ from main.config import logger
 from report.send_report import report_bug
 from report.support_request import request_support, handle_cancel_support
 from report.report_history import report_history
-from utilities.cancel.cancel import cancel_process
+from features.cancel.cancel import cancel_process
 
 # Shared menu content — single source of truth for both send & edit
 REPORT_MENU_TEXT = "🐞 *Found a bug? Report it here.*\n\nChoose an option below:"

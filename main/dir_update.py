@@ -10,8 +10,8 @@ from main.utils import (
     edit_message_if_changed,
     rate_limit_interaction,
 )
-from utilities.files.files import run_tdl_download
-from utilities.myfiles.myfiles import (myfiles_callback)
+from features.files.files import run_tdl_download
+from features.myfiles.myfiles import (myfiles_callback)
 
 async def _show_download_folder_menu_inner(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Core logic for the folder menu — call this directly to bypass rate limiting."""
@@ -296,13 +296,13 @@ async def handle_download_here_callback(update: Update, context: ContextTypes.DE
 
     # 🔥 1. DEFAULT PATH FLOW (IMPORTANT ADD THIS)
     if mode == "set_default":
-        from utilities.links.links import set_download_location
+        from features.links.links import set_download_location
         await set_download_location(update, context)
         return
 
     # 🔹 2. LINK DOWNLOAD
     elif mode == "link_download_select":
-        from utilities.links.links import download_button_handler    
+        from features.links.links import download_button_handler    
         await download_button_handler(update, context)
         return
 
@@ -349,7 +349,7 @@ async def handle_download_here_callback(update: Update, context: ContextTypes.DE
         return
 
     elif mode == "music_download_select":
-        from utilities.music.music import start_music_download
+        from features.music.music import start_music_download
         if query.data == "download_here_tg":
             target = "music_on_telegram"
         else:

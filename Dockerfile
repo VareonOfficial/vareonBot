@@ -57,8 +57,10 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 
 COPY requirements.txt .
+RUN pip install --upgrade pip  
 RUN pip install -r requirements.txt
-RUN pip install tgcrypto
+RUN pip install tgcrypto 
+
 COPY . .
 RUN chmod +x /app/search_config/vsearch/vsearch.py && \
     ln -sf /app/search_config/vsearch/vsearch.py /usr/local/bin/vsearch

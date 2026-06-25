@@ -12,7 +12,7 @@ from telegram.error import RetryAfter, TimedOut
 from functools import wraps
 from main.config import (RATE_LIMIT_PER_MINUTE, RATE_LIMIT_INTERVAL, logger, USERS_PATH)
 from main.state import awaiting_id, awaiting_cookie, sessions, user_last_interaction
-
+    
 def get_user_session(user_id):
     return sessions.get(user_id)
 
