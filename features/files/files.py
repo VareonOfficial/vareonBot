@@ -15,7 +15,7 @@ from main.state import sessions, awaiting_id, awaiting_cookie, report_mode, broa
 from main.config import BASE_DIR, PRIVATE_GROUP_ID, logger, USERS_PATH, STORAGE_PATH
 from main.utils import format_size
 from features.files.tdl_queue import queue_tdl_task
-from features.storage import get_folder_size, STORAGE_QUOTA_BYTES, get_status, build_bar, smart_format, STORAGE_QUOTA_LABEL
+from features.shared.storage import get_folder_size, STORAGE_QUOTA_BYTES, get_status, build_bar, smart_format, STORAGE_QUOTA_LABEL
 from vareon_analytics.vr_log import log_to_db, generate_task_id
 
 user_locks = {}

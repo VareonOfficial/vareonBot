@@ -33,7 +33,7 @@ from report.chat import handle_admin_reply, start_user_reply, finish_user_reply
 from features.cancel.cancel import cancel_process
 from features.links.links import link_handler, download_button_handler
 from features.links.pause_resume import resume_download, pause_download
-from features.yt_dlp import youtube_quality_callback
+from features.shared.yt_dlp import youtube_quality_callback
 from features.myfiles.myfiles import myfiles, myfiles_callback
 from features.myfiles.browse import page_next, page_prev
 from features.myfiles.select_actions import (start_rename, handle_rename_input, cancel_generated_link, 
@@ -43,8 +43,8 @@ move_page_next)
 from features.myfiles.utils import handle_reply_name
 from features.files.files import handle_file, files
 from features.cookies.set_cookies import cookies, cookies_menu, save_cookie
-from features.stats import stats_command, close_stats
-from features.storage import storage, refresh_storage
+from features.shared.stats import stats_command, close_stats
+from features.shared.storage import storage, refresh_storage
 from main.state import sessions
 from main.utils import cache_file_id, getid_command
 from main.config import (

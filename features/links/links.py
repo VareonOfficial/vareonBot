@@ -20,7 +20,7 @@ from main.state import download_tasks, sessions, report_mode, download_tasks
 from main.config import USERS_PATH, logger
 from features.links.direct_link_progress import download_file_with_progress
 from features.links.yt_shorts import handle_shorts_download, show_shorts_upload_prompt
-from features.yt_dlp import show_youtube_quality_menu
+from features.shared.yt_dlp import show_youtube_quality_menu
 from vareon_analytics.vr_log import log_to_db, generate_task_id
 ################################
 # Link Download/Upload Handlers

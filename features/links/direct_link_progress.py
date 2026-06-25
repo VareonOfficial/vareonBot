@@ -11,7 +11,7 @@ from telegram.ext import ContextTypes, CallbackContext
 from main.state import download_status, download_tasks, sessions, download_tasks
 from main.config import USERS_PATH, logger
 from vareon_analytics.vr_log import log_to_db
-from features.storage import get_folder_size, STORAGE_QUOTA_BYTES, get_status, build_bar, smart_format, STORAGE_QUOTA_LABEL
+from features.shared.storage import get_folder_size, STORAGE_QUOTA_BYTES, get_status, build_bar, smart_format, STORAGE_QUOTA_LABEL
 
 async def download_file_with_progress(context, query, message_id, file_info, download_id):
     user_id = query.from_user.id
