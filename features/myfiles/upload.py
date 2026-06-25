@@ -23,9 +23,9 @@ def _init_pending_uploads_table():
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS pending_uploads (
-            uuid TEXT PRIMARY KEY,
             vareon_id TEXT NOT NULL,
             telegram_id TEXT NOT NULL,
+            uuid TEXT PRIMARY KEY,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)

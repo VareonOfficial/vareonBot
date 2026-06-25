@@ -212,6 +212,18 @@ def run_migrations(cursor):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trash_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vareon_id INTEGER NOT NULL,
+                telegram_id INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                trash_filename TEXT NOT NULL,
+                original_path TEXT NOT NULL,
+                deleted_at TIMESTAMP NOT NULL,
+                size INTEGER NOT NULL
+            )
+        """)
         set_db_version(cursor, 4)
 # ==============================
 # 🔹 Initialize DB

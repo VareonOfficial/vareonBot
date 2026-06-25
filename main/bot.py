@@ -678,7 +678,7 @@ def setup_handlers(application: Application) -> None:
     # Static and common callback interactions (main menu, file ops)
     application.add_handler(CallbackQueryHandler(
         myfiles_callback,
-        pattern=r"^(open|file|get_link|upload_file|move_file|compress|extract|delete|refresh$|back|confirm_delete|cancel_delete|move_nav|extract_nav|move_execute|extract_execute|extract_to_folder|compress_format|multi_exec|multi_extract|cancel_compress|multi_select|select\|.*|select_all|multi_delete|multi_move|multi_compress|multi_cancel|confirm_multi_delete|cancel_multi_delete)"
+        pattern=r"^(open|file|get_link|upload_file|move_file|compress|extract|delete|refresh$|back|move_nav|extract_nav|move_execute|extract_execute|extract_to_folder|compress_format|multi_exec|multi_extract|cancel_compress|multi_select|select\|.*|select_all|multi_delete|multi_move|multi_compress|multi_cancel)"
     ))
     # Dynamic extract and move navigation/actions
     application.add_handler(CallbackQueryHandler(

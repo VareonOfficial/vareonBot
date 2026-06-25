@@ -9,8 +9,7 @@ from telegram.ext import (ConversationHandler, CallbackContext, ContextTypes)
 from main.utils import is_safe_to_delete
 from main.state import sessions, report_mode
 from features.myfiles.browse import refresh_folder_menu
-from features.myfiles.select_actions import (confirm_delete, cancel_delete, select_all, multi_delete, confirm_multi_delete, 
-cancel_multi_delete, file_menu, get_link)
+from features.myfiles.select_actions import (select_all, delete, multi_delete, file_menu, get_link)
 from features.myfiles.compress import compress,  compress_format
 from features.myfiles.extract import (show_extraction_folder_menu, extract_archive, multi_extract, handle_extract_multi_sep,
 prompt_single_folder_name)
@@ -134,13 +133,6 @@ async def myfiles_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["last_action"] = "refresh"
         await refresh_folder_menu(update, context)
         return
-    elif action == "confirm_delete":
-        await confirm_delete(update, context, vareon_id)
-        return
-
-    elif action == "cancel_delete":
-        await cancel_delete(update, context)
-        return
     
     elif action == "extract_nav":
         _, uid = data.split("|", 1)
@@ -247,11 +239,7 @@ async def myfiles_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     elif action == "multi_delete":
-        await multi_delete(update, context)
-    elif action == "confirm_multi_delete":
-        await confirm_multi_delete(update, context, vareon_id)
-    elif action == "cancel_multi_delete":
-        await cancel_multi_delete(update, context)
+        await multi_delete(update, context, vareon_id)
     elif action == "multi_move":
         await multi_move(update, context, vareon_id)        
     elif action == "file":
@@ -402,19 +390,9 @@ async def myfiles_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     elif action in ["delete_file", "delete_folder"]:
-        confirm_type = "file" if action == "delete_file" else "folder"
         context.user_data["confirm_delete_path"] = path
-        context.user_data["confirm_delete_type"] = confirm_type
-        filename = os.path.basename(path)
-        keyboard = [
-            [InlineKeyboardButton("✅ Yes, delete", callback_data="confirm_delete"),
-             InlineKeyboardButton("❌ No, go back", callback_data="cancel_delete")]
-        ]
-        await query.edit_message_text(
-            text=f"⚠️ Do you really want to delete `{filename}`?",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await delete(update, context, vareon_id)
         return
+
     else:
         logger.warning("Unhandled callback data: %s", data)

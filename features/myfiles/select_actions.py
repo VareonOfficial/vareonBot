@@ -1,6 +1,8 @@
 from collections import defaultdict
 import os
 import shutil
+import sqlite3
+import uuid
 import re
 import asyncio
 from datetime import datetime
@@ -12,16 +14,58 @@ from main.utils import (
     format_size,
     is_safe_to_delete,
 )
-from main.state import sessions, upload_tasks
-from main.config import (RENAME, NEW_FOLDER, IST, logger, USERS_PATH)
 from main.state import sessions
+from main.config import (RENAME, NEW_FOLDER, IST, logger, USERS_PATH)
+from main.config import VAREON_DB
 from features.myfiles.browse import refresh_folder_menu, ITEMS_PER_PAGE
 import httpx
 
 # Configuration (Docker-compose.yml, Docker "Container name:5000" for external connection)
 API_BASE_URL = "http://link-service:5000"
 
-async def confirm_delete(update, context, vareon_id):
+def get_item_size(path):
+    if os.path.isfile(path):
+        return os.path.getsize(path)
+    total = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            try:
+                total += os.path.getsize(fp)
+            except OSError:
+                pass
+    return total
+
+def move_to_trash_with_uuid(path, trash_dir, vareon_id, telegram_id):
+    filename = os.path.basename(path)
+    ext = os.path.splitext(filename)[1] if os.path.isfile(path) else ""
+    trash_uuid = str(uuid.uuid4())
+    trash_filename = f"{trash_uuid}{ext}"
+    trash_path = os.path.join(trash_dir, trash_filename)
+    size = get_item_size(path)
+
+    shutil.move(path, trash_path)
+
+    conn = sqlite3.connect(VAREON_DB)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO trash_files (vareon_id, telegram_id, filename, trash_filename, original_path, deleted_at, size)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        vareon_id,
+        telegram_id,
+        filename,
+        trash_filename,
+        path,
+        datetime.now().isoformat(),
+        size
+    ))
+    conn.commit()
+    conn.close()
+
+    return trash_filename
+
+async def delete(update, context, vareon_id):
     query = update.callback_query
     path = context.user_data.get("confirm_delete_path")
 
@@ -30,34 +74,85 @@ async def confirm_delete(update, context, vareon_id):
         return
 
     try:
-        if os.path.isfile(path) or os.path.islink(path):
-            os.remove(path)
-        elif os.path.isdir(path):
-            shutil.rmtree(path)
-        else:
+        user_id = query.from_user.id
+        user_data = sessions.get(user_id, {})
+        base_dir = f"{USERS_PATH}/{user_data.get('vareon_id')}"
+        trash_dir = os.path.join(base_dir, ".trash")
+        os.makedirs(trash_dir, exist_ok=True)
+
+        if not os.path.exists(path):
             await query.edit_message_text("❌ Path does not exist.")
             return
+
+        move_to_trash_with_uuid(path, trash_dir, vareon_id, user_id)
+
     except Exception as e:
-        await query.edit_message_text(f"❌ Error deleting: {str(e)}")
+        await query.edit_message_text(f"❌ Error moving to trash: {str(e)}")
         return
 
     context.user_data.pop("confirm_delete_path", None)
     context.user_data.pop("confirm_delete_type", None)
-
     path_stack = context.user_data.get("path_stack", [])
     if path_stack and path_stack[-1] == path:
         path_stack.pop()
     context.user_data["path_stack"] = path_stack
 
-    await query.edit_message_text("✅ Deleted successfully.")
+    await query.edit_message_text("📁 ➡️ 🗑️ File trashed. Use /trash to manage, restore, or delete forever.")
     await refresh_folder_menu(update, context, edit_text=False)
-    
-async def cancel_delete(update, context):
+
+
+async def multi_delete(update, context, vareon_id):
     query = update.callback_query
-    await query.answer("Cancelled")
-    context.user_data.pop("confirm_delete_path", None)
-    context.user_data.pop("confirm_delete_type", None)
-    await refresh_folder_menu(update, context, edit_text=True)
+    user_id = query.from_user.id
+
+    selected_uids = context.user_data.get('selected_uids', set())
+    if not selected_uids:
+        await query.edit_message_text("❌ No items selected.")
+        return
+
+    user_data = sessions.get(user_id, {})
+    base_dir = f"{USERS_PATH}/{user_data.get('vareon_id')}"
+    trash_dir = os.path.join(base_dir, ".trash")
+    os.makedirs(trash_dir, exist_ok=True)
+
+    moved_count = 0
+    errors = []
+
+    for uid in selected_uids:
+        path = context.user_data.get("path_map", {}).get(uid)
+        if not path:
+            errors.append(f"• {uid}: path not found")
+            continue
+        if not is_safe_to_delete(path, vareon_id):
+            errors.append(f"• {os.path.basename(path)}: unauthorized")
+            continue
+        try:
+            move_to_trash_with_uuid(path, trash_dir, vareon_id, user_id)
+            context.user_data["path_map"].pop(uid, None)
+            moved_count += 1
+        except Exception as e:
+            errors.append(f"• {os.path.basename(path)}: {str(e)}")
+
+    context.user_data.pop("confirm_multi_delete_uids", None)
+    context.user_data.pop("confirm_multi_delete_count", None)
+    context.user_data.pop("multi_select_mode", None)
+    context.user_data.pop("selected_uids", None)
+
+    if moved_count == len(selected_uids):
+        msg = f"🗑️ Moved {moved_count} item{'s' if moved_count != 1 else ''} to trash. Run /trash to restore or delete permanently."
+    else:
+        msg = f"⚠️ Only {moved_count} of {len(selected_uids)} items moved to trash. Run /trash to manage."
+        if errors:
+            error_text = "\n".join(errors)
+            header = f"\n\nErrors ({len(errors)}):\n"
+            max_error_len = 4096 - len(msg) - len(header) - 50
+            if len(error_text) > max_error_len:
+                error_text = error_text[:max_error_len] + "\n... (truncated)"
+            msg += header + error_text
+
+    await query.edit_message_text(msg, parse_mode="Markdown")
+    context.user_data["last_action"] = "refresh"
+    await refresh_folder_menu(update, context)
     
 async def file_menu(update, context):
     query = update.callback_query
@@ -430,85 +525,3 @@ async def select_all(update, context):
 
     context.user_data['selected_uids'] = selected_uids
     await refresh_folder_menu(update, context, edit_text=False)
-
-async def multi_delete(update, context):
-    query = update.callback_query
-    selected_uids = context.user_data.get('selected_uids', set())
-    if not selected_uids:
-        await query.edit_message_text("❌ No items selected.")
-        return
-
-    num_items = len(selected_uids)
-    context.user_data["confirm_multi_delete_uids"] = list(selected_uids)
-    context.user_data["confirm_multi_delete_count"] = num_items
-
-    keyboard = [[
-        InlineKeyboardButton("✅ Yes, delete all", callback_data="confirm_multi_delete"),
-        InlineKeyboardButton("❌ No, cancel", callback_data="cancel_multi_delete")
-    ]]
-    await query.edit_message_text(
-        f"⚠️ Delete **{num_items}** item{'s' if num_items != 1 else ''}?",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-async def confirm_multi_delete(update, context, vareon_id):
-    query = update.callback_query
-    selected_uids = context.user_data.get("confirm_multi_delete_uids", [])
-    if not selected_uids:
-        await query.edit_message_text("❌ Session expired or no items found.")
-        return
-
-    deleted_count = 0
-    errors = []
-
-    for uid in selected_uids:
-        path = context.user_data.get("path_map", {}).get(uid)
-        if not path:
-            errors.append(f"• {uid}: path not found")
-            continue
-        if not is_safe_to_delete(path, vareon_id):
-            errors.append(f"• {os.path.basename(path)}: unauthorized")
-            continue
-        try:
-            if os.path.isfile(path) or os.path.islink(path):
-                os.remove(path)
-            elif os.path.isdir(path):
-                shutil.rmtree(path)
-            context.user_data["path_map"].pop(uid, None)
-            deleted_count += 1
-        except Exception as e:
-            errors.append(f"• {os.path.basename(path)}: {str(e)}")
-
-    context.user_data.pop("confirm_multi_delete_uids", None)
-    context.user_data.pop("confirm_multi_delete_count", None)
-    context.user_data.pop("multi_select_mode", None)
-    context.user_data.pop("selected_uids", None)
-
-    # Build message and truncate if too long
-    if deleted_count == len(selected_uids):
-        msg = f"✅ Deleted **{deleted_count}** item{'s' if deleted_count != 1 else ''}."
-    else:
-        msg = f"⚠️ Deleted **{deleted_count}** of **{len(selected_uids)}** items."
-        if errors:
-            error_text = "\n".join(errors)
-            header = f"\n\nErrors ({len(errors)}):\n"
-            # Telegram limit is 4096 chars, leave room for header and message
-            max_error_len = 4096 - len(msg) - len(header) - 50
-            if len(error_text) > max_error_len:
-                error_text = error_text[:max_error_len] + "\n... (truncated)"
-            msg += header + error_text
-
-    await query.edit_message_text(msg, parse_mode="Markdown")
-    context.user_data["last_action"] = "refresh"
-    await refresh_folder_menu(update, context)
-
-async def cancel_multi_delete(update, context):
-    query = update.callback_query
-    context.user_data.pop("confirm_multi_delete_uids", None)
-    context.user_data.pop("confirm_multi_delete_count", None)
-    context.user_data.pop('multi_select_mode', None)
-    context.user_data.pop('selected_uids', None)
-    context.user_data["last_action"] = "refresh"
-    await query.edit_message_text("❌ Deletion cancelled.")
-    await refresh_folder_menu(update, context)
