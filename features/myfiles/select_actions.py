@@ -96,8 +96,6 @@ async def delete(update, context, vareon_id):
     if path_stack and path_stack[-1] == path:
         path_stack.pop()
     context.user_data["path_stack"] = path_stack
-
-    await query.edit_message_text("📁 ➡️ 🗑️ File trashed. Use /trash to manage, restore, or delete forever.")
     await refresh_folder_menu(update, context, edit_text=False)
 
 
@@ -138,19 +136,9 @@ async def multi_delete(update, context, vareon_id):
     context.user_data.pop("multi_select_mode", None)
     context.user_data.pop("selected_uids", None)
 
-    if moved_count == len(selected_uids):
-        msg = f"🗑️ Moved {moved_count} item{'s' if moved_count != 1 else ''} to trash. Run /trash to restore or delete permanently."
-    else:
-        msg = f"⚠️ Only {moved_count} of {len(selected_uids)} items moved to trash. Run /trash to manage."
-        if errors:
-            error_text = "\n".join(errors)
-            header = f"\n\nErrors ({len(errors)}):\n"
-            max_error_len = 4096 - len(msg) - len(header) - 50
-            if len(error_text) > max_error_len:
-                error_text = error_text[:max_error_len] + "\n... (truncated)"
-            msg += header + error_text
-
-    await query.edit_message_text(msg, parse_mode="Markdown")
+    if moved_count != len(selected_uids) and errors:
+        error_text = "\n".join(errors)
+        logger.error(f"Trash operation incomplete. Errors:\n{error_text}")
     context.user_data["last_action"] = "refresh"
     await refresh_folder_menu(update, context)
     

@@ -27,7 +27,7 @@ def smart_format(size_bytes):
 
 
 def get_folder_size(path):
-    total = 0
+    total = 0.0
     for dirpath, _, filenames in os.walk(path):
         for f in filenames:
             fp = os.path.join(dirpath, f)

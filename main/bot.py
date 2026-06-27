@@ -43,6 +43,9 @@ move_page_next)
 from features.myfiles.utils import handle_reply_name
 from features.files.files import handle_file, files
 from features.cookies.set_cookies import cookies, cookies_menu, save_cookie
+from features.trash.trash import trash, trash_file_detail
+from features.trash.trash_handlers import (trash_action_handler, trash_file_action_handler, trash_page_handler,
+                                           trash_toggle_handler, trash_select_action_handler, trash_confirm_handler)
 from features.shared.stats import stats_command, close_stats
 from features.shared.storage import storage, refresh_storage
 from main.state import sessions
@@ -608,15 +611,20 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("id", get_chat_id))
     # Move broadcast handler here to take precedence
     application.add_handler(CommandHandler("report", report_command))
-    application.add_handler(CommandHandler("broadcast", broadcast_command))
     application.add_handler(CommandHandler("link", link_handler))
     application.add_handler(CommandHandler("files", files))
     application.add_handler(CommandHandler("music", music))
-    application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
+    application.add_handler(CommandHandler("cookies", cookies))
     application.add_handler(CommandHandler("export_data", handle_export_data))
+    application.add_handler(CommandHandler("trash", trash))
+    
+    
+    # ADMIN commands
     application.add_handler(CommandHandler("getid", getid_command))
     application.add_handler(CommandHandler("stats", stats_command))
-    application.add_handler(CommandHandler("cookies", cookies))
+    application.add_handler(CommandHandler("broadcast", broadcast_command))
+    application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
+    
     application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID), handle_broadcast_message))
     application.add_handler(
         MessageHandler(
@@ -721,6 +729,15 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(move_here, pattern="^move_here$"))
     application.add_handler(CallbackQueryHandler(move_page_prev, pattern=r"^move_page_prev\|"))
     application.add_handler(CallbackQueryHandler(move_page_next, pattern=r"^move_page_next\|"))
+    
+    #================================= TRASH HANDLER ================================
+    application.add_handler(CallbackQueryHandler(trash_confirm_handler, pattern=r"^trash_confirm:"))
+    application.add_handler(CallbackQueryHandler(trash_page_handler,          pattern=r"^trash_page:"))
+    application.add_handler(CallbackQueryHandler(trash_toggle_handler,        pattern=r"^trash_toggle:"))
+    application.add_handler(CallbackQueryHandler(trash_select_action_handler, pattern=r"^trash_select_action:"))
+    application.add_handler(CallbackQueryHandler(trash_file_detail,        pattern=r"^trash_file:\d+$"))
+    application.add_handler(CallbackQueryHandler(trash_action_handler,     pattern=r"^trash_action:"))
+    application.add_handler(CallbackQueryHandler(trash_file_action_handler, pattern=r"^trash_file_action:"))
     
     application.add_handler(CallbackQueryHandler(close_stats, pattern="close_stats"))
     application.add_handler(CallbackQueryHandler(handle_folder_page_navigation, pattern="^folder_page\|"))
