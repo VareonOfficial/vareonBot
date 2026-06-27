@@ -805,8 +805,8 @@ async def run_all():
             logger.error(f"Failed to cache private group peer: {e2}")
 
     # ── Start purge scheduler ───────────────────────────────────────
-    logger.info("Starting purge scheduler...")
-    start_purge_scheduler()
+    if os.getenv("ENABLE_PURGE", "true").lower() == "true":
+        start_purge_scheduler()
     # ── PTB Application ──────────────────────────────────────────────
     logger.info("Starting PTB application...")
     application = Application.builder().token(BOT_TOKEN).build()
