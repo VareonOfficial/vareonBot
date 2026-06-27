@@ -58,7 +58,7 @@ async def cookies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([
         InlineKeyboardButton(
             "❌ Close",
-            callback_data="cancel_process",
+            callback_data="_common_menu:close:cookies",
             style="danger"
         )
     ])

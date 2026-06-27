@@ -24,7 +24,7 @@ def get_report_menu_keyboard():
             InlineKeyboardButton("💬 Request Customer Support", callback_data="report_support"),
         ],
         [
-            InlineKeyboardButton("❌ Close", callback_data="report_close", style="danger"),
+            InlineKeyboardButton("❌ Close", callback_data="_common_menu:close:report", style="danger"),
         ],
     ])
 
@@ -65,9 +65,6 @@ async def report_buttons(update: Update, context: CallbackContext):
 
     elif data == "report_reopen_menu":
         await handle_reopen_report(update, context)
-
-    elif data == "report_close":
-        await cancel_process(update, context)
          
 async def handle_reopen_report(update: Update, context: CallbackContext):
     """

@@ -122,7 +122,7 @@ async def _render_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([
             InlineKeyboardButton("♻️ Restore All",  callback_data="trash_action:restore_all", style="success"),
             InlineKeyboardButton("🔄 Refresh",      callback_data="trash_action:refresh", style="primary"),
-            InlineKeyboardButton("❌ Close",        callback_data="trash_action:close", style="danger"),
+            InlineKeyboardButton("❌ Close",        callback_data="_common_menu:close:trash", style="danger"),
         ])
 
     reply_markup = InlineKeyboardMarkup(keyboard)

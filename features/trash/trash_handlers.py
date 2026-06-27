@@ -59,9 +59,6 @@ async def trash_action_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if action == "refresh":
         await _render_trash(update, context)
 
-    elif action == "close":
-        await query.delete_message()
-
     elif action == "multi_select":
         # Enter multi-select mode, keep current page
         context.user_data["trash_select_mode"] = True

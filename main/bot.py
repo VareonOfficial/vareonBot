@@ -50,7 +50,7 @@ from features.trash.purge import start_purge_scheduler
 from features.shared.stats import stats_command, close_stats
 from features.shared.storage import storage, refresh_storage
 from main.state import sessions
-from main.utils import cache_file_id, getid_command
+from main.utils import cache_file_id, getid_command, _common_menu_handler
 from main.config import (
     VAREON_DB, logger, ADMIN_ID, PRIVATE_GROUP_LINK, PYRO_SESSION_TXT,
     RENAME, MOVE_FOLDER, NEW_FOLDER, BOT_TOKEN, USERS_PATH, TELETHON_SESSION_TXT,
@@ -619,7 +619,6 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("export_data", handle_export_data))
     application.add_handler(CommandHandler("trash", trash))
     
-    
     # ADMIN commands
     application.add_handler(CommandHandler("getid", getid_command))
     application.add_handler(CommandHandler("stats", stats_command))
@@ -712,9 +711,7 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(delete_report_handler, pattern=r"^rep_delete:"))
     application.add_handler(CallbackQueryHandler(report_history, pattern=r"^report_history"))
     application.add_handler(CallbackQueryHandler(report_buttons, pattern=r"^report_"))
-    #                           Talking with the developers via Support Group
-    application.add_handler(CallbackQueryHandler(start_user_reply, pattern="^start_reply:"))
-    application.add_handler(CallbackQueryHandler(finish_user_reply, pattern="^finish_user_reply$"))
+    
     #================================= LINK HANDLER ================================
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, link_handler))
     application.add_handler(CallbackQueryHandler(download_button_handler, pattern="^start_download$"))
@@ -733,26 +730,36 @@ def setup_handlers(application: Application) -> None:
     
     #================================= TRASH HANDLER ================================
     application.add_handler(CallbackQueryHandler(trash_confirm_handler, pattern=r"^trash_confirm:"))
-    application.add_handler(CallbackQueryHandler(trash_page_handler,          pattern=r"^trash_page:"))
-    application.add_handler(CallbackQueryHandler(trash_toggle_handler,        pattern=r"^trash_toggle:"))
+    application.add_handler(CallbackQueryHandler(trash_page_handler, pattern=r"^trash_page:"))
+    application.add_handler(CallbackQueryHandler(trash_toggle_handler, pattern=r"^trash_toggle:"))
     application.add_handler(CallbackQueryHandler(trash_select_action_handler, pattern=r"^trash_select_action:"))
-    application.add_handler(CallbackQueryHandler(trash_file_detail,        pattern=r"^trash_file:\d+$"))
-    application.add_handler(CallbackQueryHandler(trash_action_handler,     pattern=r"^trash_action:"))
+    application.add_handler(CallbackQueryHandler(trash_file_detail, pattern=r"^trash_file:\d+$"))
+    application.add_handler(CallbackQueryHandler(trash_action_handler, pattern=r"^trash_action:"))
     application.add_handler(CallbackQueryHandler(trash_file_action_handler, pattern=r"^trash_file_action:"))
     
-    application.add_handler(CallbackQueryHandler(close_stats, pattern="close_stats"))
+    #=============================== DIR UPDATE HANDLER ================================
     application.add_handler(CallbackQueryHandler(handle_folder_page_navigation, pattern="^folder_page\|"))
     application.add_handler(CallbackQueryHandler(navigate_back, pattern="^navigate_back$"))
     application.add_handler(CallbackQueryHandler(navigate_folder, pattern="^navigate\\|.*$"))
     application.add_handler(CallbackQueryHandler(show_download_folder_menu, pattern="^open_download_menu$"))
-
     application.add_handler(CallbackQueryHandler(handle_download_here_callback, pattern="^download_here"))
+    
+    ################################ MUSIC HANDLER ================================
+    application.add_handler(CallbackQueryHandler(music_search_pick_callback, pattern=r"^music_search_pick:"))
+    ################################ SETTINGS HANDLER ================================
     application.add_handler(CallbackQueryHandler(handle_toggle_default_dl, pattern="^toggle_default_dl$"))
     application.add_handler(CallbackQueryHandler(handle_toggle_receive_updates, pattern="^toggle_receive_updates$"))
-    application.add_handler(CallbackQueryHandler(cancel_broadcast, pattern="^cancel_broadcast$"))
+    ################################ STORAGE HANDLER ================================
     application.add_handler(CallbackQueryHandler(refresh_storage, pattern="^refresh_storage$"))
+    
+    ################################ ADMIN-CONTROLLED HANDLERS ================================
+    application.add_handler(CallbackQueryHandler(_common_menu_handler, pattern="^_common_menu:"))
+    application.add_handler(CallbackQueryHandler(close_stats, pattern="close_stats"))
+    application.add_handler(CallbackQueryHandler(cancel_broadcast, pattern="^cancel_broadcast$"))
     application.add_handler(CallbackQueryHandler(youtube_quality_callback, pattern="^yt_quality\\|.*$"))
-    application.add_handler(CallbackQueryHandler(music_search_pick_callback, pattern=r"^music_search_pick:"))
+    ##################### Talking with the developers via Support Group ==========================
+    application.add_handler(CallbackQueryHandler(start_user_reply, pattern="^start_reply:"))
+    application.add_handler(CallbackQueryHandler(finish_user_reply, pattern="^finish_user_reply$"))
 
 ################################
 # Error Handler

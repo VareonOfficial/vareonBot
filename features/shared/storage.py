@@ -173,8 +173,8 @@ def build_storage_dashboard(vareon_id):
 def build_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Refresh",   callback_data="refresh_storage")],
-        [InlineKeyboardButton("🗑 Empty Bin", callback_data="empty_bin")],
-        [InlineKeyboardButton("❌ Close",     callback_data="cancel_process")],
+        [InlineKeyboardButton("🗑 Empty Bin", callback_data="trash_action:empty_bin")],
+        [InlineKeyboardButton("❌ Close",     callback_data="_common_menu:close:storage", style="danger")],
     ])
 
 

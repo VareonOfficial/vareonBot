@@ -12,7 +12,7 @@ from telegram.error import RetryAfter, TimedOut
 from functools import wraps
 from main.config import (RATE_LIMIT_PER_MINUTE, RATE_LIMIT_INTERVAL, logger, USERS_PATH)
 from main.state import awaiting_id, awaiting_cookie, sessions, user_last_interaction
-    
+
 def get_user_session(user_id):
     return sessions.get(user_id)
 
@@ -41,30 +41,41 @@ async def cache_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user:
         return
     user_id = update.effective_user.id
-
     if not awaiting_id.get(user_id):
         return
-
     if awaiting_cookie.get(user_id):
         return
-
     if message.video:
         file_id = message.video.file_id
         await message.reply_text(f"🎥 Video file_id:\n<code>{file_id}</code>", parse_mode="HTML")
-
     elif message.document:
         file_id = message.document.file_id
         await message.reply_text(f"📄 Document file_id:\n<code>{file_id}</code>", parse_mode="HTML")
-
     elif message.photo:
         file_id = message.photo[-1].file_id
         await message.reply_text(f"🖼️ Photo file_id:\n<code>{file_id}</code>", parse_mode="HTML")
-
     else:
         await message.reply_text("⚠️ Please send a video, document, or photo.")
 
     awaiting_id.pop(user_id, None)
+  
+from datetime import datetime
+
+async def _common_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    # Example: "_common_menu:close:report" -> prefix="_common_menu", action="close", menu_type="report"
+    __, action, menu_type = query.data.split(":", 2)
     
+    if action == "close":
+        menu_name = menu_type.replace("_", " ").title()
+        timestamp = datetime.now().strftime("[%d-%m-%Y %I:%M %p]")
+        await query.edit_message_text(
+            text=f"🔒 <b>{menu_name} Menu</b> closed at <i>{timestamp}</i>",
+            parse_mode="HTML"
+        )
+        logger.info(f"{menu_name} menu closed by user {query.from_user.id} at {timestamp}")
+         
 def ensure_folder_permissions(folder_path: str) -> str:
     """
     Ensures the folder exists and is writable.

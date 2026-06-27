@@ -239,7 +239,7 @@ async def refresh_folder_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Common buttons for both root and subfolders
         keyboard.append([InlineKeyboardButton("📌 Multiple Selection", callback_data="multi_select", style="success")])
         keyboard.append([InlineKeyboardButton("🔄 Refresh", callback_data="refresh", style="primary")])
-        keyboard.append([InlineKeyboardButton("❌ Close", callback_data="cancel_process", style="danger")])
+        keyboard.append([InlineKeyboardButton("❌ Close", callback_data="_common_menu:close:myfiles", style="danger")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
