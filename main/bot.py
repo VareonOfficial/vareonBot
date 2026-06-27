@@ -538,229 +538,247 @@ async def accounts(update: Update, context: CallbackContext):
 async def debug_all(update: Update, context: CallbackContext):
     logger.info(f"[DEBUG_ALL] update={update}")
 def setup_handlers(application: Application) -> None:
-    """Setup all handlers for the application."""
-    # Restore sessions on startup
+    """
+    Register all handlers for the application.
+    ⚠️  ORDER IS CRITICAL — handlers are matched top-to-bottom within each group.
+         Moving a handler can silently break another feature.
+         Read the priority notes before touching anything here.
+    """
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 0.  STARTUP & GLOBAL HOOKS
+    # ─────────────────────────────────────────────────────────────────────────────
     restore_sessions(application)
+    
+    # group -99: fires first on every callback update — never remove or reorder
     application.add_handler(CallbackQueryHandler(debug_all), group=-99)
-    #================================= CANCEL HANDLER ================================
-    application.add_handler(CallbackQueryHandler(cancel_process, pattern=r"^cancel_process($|\|)"))   
-     
     application.add_error_handler(error_handler)
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 1.  CANCEL
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CallbackQueryHandler(cancel_process, pattern=r"^cancel_process($|\|)"))
+    application.add_handler(CommandHandler("cancel", cancel_process))
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 2.  SEARCH  (/search → text input → results → episode range, etc.)
+    # ─────────────────────────────────────────────────────────────────────────────
     search_handler = ConversationHandler(
         entry_points=[
-            CommandHandler('search', search.start_search)
+            CommandHandler("search", search.start_search),
         ],
         states={
             SEARCH_CHOICE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, search.choose_result)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, search.choose_result),
             ],
-
             SEARCH_OPTION: [
-                CallbackQueryHandler(search.select_option, pattern=r"^opt_"),
-                CallbackQueryHandler(handle_toonworld4all_quality, pattern=r"^tw_opt_\d+$"),
+                CallbackQueryHandler(search.select_option,          pattern=r"^opt_"),
+                CallbackQueryHandler(handle_toonworld4all_quality,  pattern=r"^tw_opt_\d+$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, choose_bollyflix_result),
             ],
-
             TOONWORLD_QUALITY: [
                 CallbackQueryHandler(handle_toonworld_quality_choice, pattern=r"^tw_quality_\d+$"),
             ],
-
             SEARCH_RANGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_episode_range)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_episode_range),
             ],
-
             ANIMEFLIX_EPISODE_RANGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, animeflix_episode_range)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, animeflix_episode_range),
             ],
-
-            # ─────── GAMELEECH ───────
             GAMELEECH_CHOICE: [
-                CallbackQueryHandler(
-                    handle_gamesleech_zip,
-                    pattern=r"^GAMELEECH_ZIP$"
-                )
+                CallbackQueryHandler(handle_gamesleech_zip, pattern=r"^GAMELEECH_ZIP$"),
             ],
-
             GAMELEECH_PARTS: [
-                # ✅ ZIP must work EVEN WHILE WAITING FOR PART INPUT
-                CallbackQueryHandler(
-                    handle_gamesleech_zip,
-                    pattern=r"^GAMELEECH_ZIP$"
-                ),
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND,
-                    handle_gamesleech_parts
-                )
+                # ZIP button must remain reachable even while waiting for part text input
+                CallbackQueryHandler(handle_gamesleech_zip,   pattern=r"^GAMELEECH_ZIP$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gamesleech_parts),
             ],
         },
-        fallbacks=[
-        ],
-        allow_reentry=True,
-    )
-    # In setup_handlers:
+        fallbacks=[],
+        allow_reentry=True,)
     application.add_handler(search_handler)
-    # Basic commands
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler("login", start))
-    application.add_handler(CommandHandler('help', help_command))
-    application.add_handler(CommandHandler('logout', logout))
-    application.add_handler(CommandHandler('storage', storage))
-    application.add_handler(CommandHandler('myfiles', myfiles))
-    application.add_handler(CommandHandler('cancel', cancel_process))
-    application.add_handler(CommandHandler("account", accounts))
-    application.add_handler(CommandHandler("settings", settings))
-    application.add_handler(CommandHandler("id", get_chat_id))
-    # Move broadcast handler here to take precedence
-    application.add_handler(CommandHandler("report", report_command))
-    application.add_handler(CommandHandler("link", link_handler))
-    application.add_handler(CommandHandler("files", files))
-    application.add_handler(CommandHandler("music", music))
-    application.add_handler(CommandHandler("cookies", cookies))
-    application.add_handler(CommandHandler("export_data", handle_export_data))
-    application.add_handler(CommandHandler("trash", trash))
-    
-    # ADMIN commands
-    application.add_handler(CommandHandler("getid", getid_command))
-    application.add_handler(CommandHandler("stats", stats_command))
-    application.add_handler(CommandHandler("broadcast", broadcast_command))
-    application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
-    
-    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID), handle_broadcast_message))
-    application.add_handler(
-        MessageHandler(
-            filters.ChatType.PRIVATE &
-            (filters.Document.ALL | filters.VIDEO | filters.AUDIO | filters.PHOTO | filters.VOICE | filters.VIDEO_NOTE) &
-            ~filters.Regex(r'^/'),
-            handle_file
-        ),
-        group=-5
-    )
 
-    # New Folder Conversation Handler
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 3.  MYFILES  — file manager (browse, rename, move, new folder)
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 3a. New-folder conversation
     new_folder_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_new_folder, pattern="^new_folder$")],
-        states={
-            NEW_FOLDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_folder_input)],
-        },
-        fallbacks=[
-            CommandHandler("cancel", cancel_process),
+        entry_points=[
+            CallbackQueryHandler(start_new_folder, pattern="^new_folder$"),
         ],
-        allow_reentry=True
-    )
+        states={
+            NEW_FOLDER: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_folder_input),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_process)],
+        allow_reentry=True,)
     application.add_handler(new_folder_conv)
-
+    # 3b. Rename conversation (file or folder)
     rename_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_rename, pattern=r"^(rename|rename_folder)\|")],
-        states={
-            RENAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_rename_input)],
-        },
-        fallbacks=[
-            CommandHandler("cancel", cancel_process),
+        entry_points=[
+            CallbackQueryHandler(start_rename, pattern=r"^(rename|rename_folder)\|"),
         ],
-        allow_reentry=True
-    )
+        states={
+            RENAME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_rename_input),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_process)],
+        allow_reentry=True,)
     application.add_handler(rename_conv)
-    
-    #======================= Common for Extracting(single folder) and Compressing name ========================
-    application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, handle_reply_name))
-    
-    # Move Folder Conversation Handler
+    # 3c. Move-folder conversation
     move_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_move_folder, pattern=r"^move_folder\|")],
+        entry_points=[
+            CallbackQueryHandler(start_move_folder, pattern=r"^move_folder\|"),
+        ],
         states={
             MOVE_FOLDER: [
                 CallbackQueryHandler(navigate_move_folder, pattern=r"^navigate_move\|"),
-                CallbackQueryHandler(navigate_move_back, pattern="^navigate_move_back$"),
-                CallbackQueryHandler(move_here, pattern="^move_here$")
+                CallbackQueryHandler(navigate_move_back,   pattern="^navigate_move_back$"),
+                CallbackQueryHandler(move_here,            pattern="^move_here$"),
             ],
         },
         fallbacks=[
-            CommandHandler('start', start),
-            CommandHandler('logout', logout),
-            CommandHandler('help', help_command),
+            CommandHandler("start",  start),
+            CommandHandler("logout", logout),
+            CommandHandler("help",   help_command),
         ],
-        allow_reentry=True
-    )
+        allow_reentry=True,)
     application.add_handler(move_conv)
-
-    # Static and common callback interactions (main menu, file ops)
-    application.add_handler(CallbackQueryHandler(
-        myfiles_callback,
-        pattern=r"^(open|file|get_link|upload_file|move_file|compress|extract|delete|refresh$|back|move_nav|extract_nav|move_execute|extract_execute|extract_to_folder|compress_format|multi_exec|multi_extract|cancel_compress|multi_select|select\|.*|select_all|multi_delete|multi_move|multi_compress|multi_cancel)"
-    ))
-    # Dynamic extract and move navigation/actions
-    application.add_handler(CallbackQueryHandler(
-        myfiles_callback,
-        pattern=r"^(extract_nav\|.*|extract_nav_back|extract_execute|move_nav\|.*|move_nav_back|move_execute)$"
-    ))
-
-
-    application.add_handler(MessageHandler(filters.ChatType.PRIVATE & (filters.VIDEO | filters.Document.ALL | filters.PHOTO), cache_file_id), group=-1)    # 📂 Save Spotify Cookie Message Handler
-    application.add_handler(MessageHandler(filters.Document.ALL & ~filters.COMMAND, save_cookie),group=-2)
-    application.add_handler(
-        CallbackQueryHandler(cookies_menu, pattern=r"^cookie_options")
-    )
-    # Change the groups so they don't block each other
-    application.add_handler(MessageHandler(filters.Chat(int(SUPPORT_GROUP_ID)) & filters.REPLY, handle_admin_reply), group=-4)
-    #================================ REPORT HANDLERS ===============================
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_report_subject), group=-3)
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_report_message), group=-2)
-    application.add_handler(CallbackQueryHandler(finish_report, pattern="^finish_report$"))
-    application.add_handler(CallbackQueryHandler(handle_priority_selection, pattern="^priority_"))
-    application.add_handler(CallbackQueryHandler(view_report_details, pattern=r"^view_rep:"))
-    application.add_handler(CallbackQueryHandler(delete_report_handler, pattern=r"^rep_delete:"))
-    application.add_handler(CallbackQueryHandler(report_history, pattern=r"^report_history"))
-    application.add_handler(CallbackQueryHandler(report_buttons, pattern=r"^report_"))
-    
-    #================================= LINK HANDLER ================================
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, link_handler))
-    application.add_handler(CallbackQueryHandler(download_button_handler, pattern="^start_download$"))
-    application.add_handler(CallbackQueryHandler(pause_download, pattern="^pause_download$"))
-    application.add_handler(CallbackQueryHandler(resume_download, pattern="^resume_download$"))
-
-    #================================= MYFILES HANDLER ================================
-    application.add_handler(CallbackQueryHandler(page_prev, pattern=r"^page_prev\|"))
-    application.add_handler(CallbackQueryHandler(page_next, pattern=r"^page_next\|"))
-    application.add_handler(CallbackQueryHandler(cancel_generated_link, pattern=r"^cancel_generated_link:"))
-    application.add_handler(CallbackQueryHandler(navigate_move_folder, pattern="^navigate_move\\|.*$"))
-    application.add_handler(CallbackQueryHandler(navigate_move_back, pattern="^navigate_move_back$"))
-    application.add_handler(CallbackQueryHandler(move_here, pattern="^move_here$"))
+    # 3d. /myfiles command
+    application.add_handler(CommandHandler("myfiles", myfiles))
+    # 3e. Core file-manager button actions
+    application.add_handler(CallbackQueryHandler(myfiles_callback,
+        pattern=(
+            r"^(open|file|get_link|upload_file|move_file|compress|extract|delete|refresh$|back|move_nav|extract_nav"
+            r"|move_execute|extract_execute|extract_to_folder|compress_format|multi_exec|multi_extract|cancel_compress"
+            r"|multi_select|select\|.*|select_all|multi_delete|multi_move|multi_compress|multi_cancel)"
+        ),))
+    # 3f. Dynamic extract / move navigation (also inside conversations above)
+    application.add_handler(CallbackQueryHandler(myfiles_callback,
+        pattern=r"^(extract_nav\|.*|extract_nav_back|extract_execute|move_nav\|.*|move_nav_back|move_execute)$",))
+    application.add_handler(CallbackQueryHandler(navigate_move_folder, pattern=r"^navigate_move\|"))
+    application.add_handler(CallbackQueryHandler(navigate_move_back,   pattern="^navigate_move_back$"))
+    application.add_handler(CallbackQueryHandler(move_here,            pattern="^move_here$"))
+    # 3g. Pagination (browse pages inside myfiles)
+    application.add_handler(CallbackQueryHandler(page_prev,      pattern=r"^page_prev\|"))
+    application.add_handler(CallbackQueryHandler(page_next,      pattern=r"^page_next\|"))
     application.add_handler(CallbackQueryHandler(move_page_prev, pattern=r"^move_page_prev\|"))
     application.add_handler(CallbackQueryHandler(move_page_next, pattern=r"^move_page_next\|"))
-    
-    #================================= TRASH HANDLER ================================
-    application.add_handler(CallbackQueryHandler(trash_confirm_handler, pattern=r"^trash_confirm:"))
-    application.add_handler(CallbackQueryHandler(trash_page_handler, pattern=r"^trash_page:"))
-    application.add_handler(CallbackQueryHandler(trash_toggle_handler, pattern=r"^trash_toggle:"))
-    application.add_handler(CallbackQueryHandler(trash_select_action_handler, pattern=r"^trash_select_action:"))
-    application.add_handler(CallbackQueryHandler(trash_file_detail, pattern=r"^trash_file:\d+$"))
-    application.add_handler(CallbackQueryHandler(trash_action_handler, pattern=r"^trash_action:"))
-    application.add_handler(CallbackQueryHandler(trash_file_action_handler, pattern=r"^trash_file_action:"))
-    
-    #=============================== DIR UPDATE HANDLER ================================
-    application.add_handler(CallbackQueryHandler(handle_folder_page_navigation, pattern="^folder_page\|"))
-    application.add_handler(CallbackQueryHandler(navigate_back, pattern="^navigate_back$"))
-    application.add_handler(CallbackQueryHandler(navigate_folder, pattern="^navigate\\|.*$"))
-    application.add_handler(CallbackQueryHandler(show_download_folder_menu, pattern="^open_download_menu$"))
+    # 3h. Folder / directory navigation (dir_update.py — used while choosing download location)
+    application.add_handler(CallbackQueryHandler(handle_folder_page_navigation, pattern="^folder_page\\|"))
+    application.add_handler(CallbackQueryHandler(navigate_back,                 pattern="^navigate_back$"))
+    application.add_handler(CallbackQueryHandler(navigate_folder,               pattern="^navigate\\|.*$"))
+    application.add_handler(CallbackQueryHandler(show_download_folder_menu,     pattern="^open_download_menu$"))
     application.add_handler(CallbackQueryHandler(handle_download_here_callback, pattern="^download_here"))
+    # 3i. Inline-reply naming (used by compress / extract single-folder flow)
+    application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, handle_reply_name))
+    # 3j. Generated link cancel button
+    application.add_handler(CallbackQueryHandler(cancel_generated_link, pattern=r"^cancel_generated_link:"))
     
-    ################################ MUSIC HANDLER ================================
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 4.  FILES
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("files", files))
+    application.add_handler(MessageHandler(filters.ChatType.PRIVATE
+            & (filters.Document.ALL| filters.VIDEO| filters.AUDIO| filters.PHOTO| filters.VOICE
+               | filters.VIDEO_NOTE)& ~filters.Regex(r"^/"),
+            handle_file,
+        ),group=-5,)
+    application.add_handler(MessageHandler(filters.ChatType.PRIVATE
+            & (filters.VIDEO | filters.Document.ALL | filters.PHOTO),
+            cache_file_id,
+        ),group=-1,)
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 5.  TRASH
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("trash", trash))
+    application.add_handler(CallbackQueryHandler(trash_confirm_handler,       pattern=r"^trash_confirm:"))
+    application.add_handler(CallbackQueryHandler(trash_page_handler,          pattern=r"^trash_page:"))
+    application.add_handler(CallbackQueryHandler(trash_toggle_handler,        pattern=r"^trash_toggle:"))
+    application.add_handler(CallbackQueryHandler(trash_select_action_handler, pattern=r"^trash_select_action:"))
+    application.add_handler(CallbackQueryHandler(trash_file_detail,           pattern=r"^trash_file:\d+$"))
+    application.add_handler(CallbackQueryHandler(trash_action_handler,        pattern=r"^trash_action:"))
+    application.add_handler(CallbackQueryHandler(trash_file_action_handler,   pattern=r"^trash_file_action:"))
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 6.  LINK — URL downloads, pause, resume
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("link", link_handler))
+    application.add_handler(CallbackQueryHandler(download_button_handler, pattern="^start_download$"))
+    application.add_handler(CallbackQueryHandler(pause_download,          pattern="^pause_download$"))
+    application.add_handler(CallbackQueryHandler(resume_download,         pattern="^resume_download$"))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, link_handler))
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 7.  MUSIC
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("music", music))
     application.add_handler(CallbackQueryHandler(music_search_pick_callback, pattern=r"^music_search_pick:"))
-    ################################ SETTINGS HANDLER ================================
-    application.add_handler(CallbackQueryHandler(handle_toggle_default_dl, pattern="^toggle_default_dl$"))
-    application.add_handler(CallbackQueryHandler(handle_toggle_receive_updates, pattern="^toggle_receive_updates$"))
-    ################################ STORAGE HANDLER ================================
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 8.  COOKIES
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("cookies", cookies))
+    application.add_handler(CallbackQueryHandler(cookies_menu, pattern=r"^cookie_options"))
+    application.add_handler(MessageHandler(filters.Document.ALL & ~filters.COMMAND, save_cookie),group=-2,)
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 9.  STORAGE
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("storage", storage))
     application.add_handler(CallbackQueryHandler(refresh_storage, pattern="^refresh_storage$"))
-    
-    ################################ ADMIN-CONTROLLED HANDLERS ================================
-    application.add_handler(CallbackQueryHandler(_common_menu_handler, pattern="^_common_menu:"))
-    application.add_handler(CallbackQueryHandler(close_stats, pattern="close_stats"))
-    application.add_handler(CallbackQueryHandler(cancel_broadcast, pattern="^cancel_broadcast$"))
-    application.add_handler(CallbackQueryHandler(youtube_quality_callback, pattern="^yt_quality\\|.*$"))
-    ##################### Talking with the developers via Support Group ==========================
-    application.add_handler(CallbackQueryHandler(start_user_reply, pattern="^start_reply:"))
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 10. REPORT SYSTEM  — bug reports and user↔admin support chat
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("report", report_command))
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_report_subject), group=-3,)
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_report_message), group=-2,)
+    application.add_handler(MessageHandler(filters.Chat(int(SUPPORT_GROUP_ID)) & filters.REPLY, handle_admin_reply,), group=-4,)
+    application.add_handler(CallbackQueryHandler(finish_report,             pattern="^finish_report$"))
+    application.add_handler(CallbackQueryHandler(handle_priority_selection, pattern="^priority_"))
+    application.add_handler(CallbackQueryHandler(view_report_details,       pattern=r"^view_rep:"))
+    application.add_handler(CallbackQueryHandler(delete_report_handler,     pattern=r"^rep_delete:"))
+    application.add_handler(CallbackQueryHandler(report_history,            pattern=r"^report_history"))
+    application.add_handler(CallbackQueryHandler(report_buttons,            pattern=r"^report_"))
+    # User-side reply flow (user replies to admin from inside the bot)
+    application.add_handler(CallbackQueryHandler(start_user_reply,  pattern="^start_reply:"))
     application.add_handler(CallbackQueryHandler(finish_user_reply, pattern="^finish_user_reply$"))
 
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 11. SETTINGS
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("settings", settings))
+    application.add_handler(CallbackQueryHandler(handle_toggle_default_dl,      pattern="^toggle_default_dl$"))
+    application.add_handler(CallbackQueryHandler(handle_toggle_receive_updates, pattern="^toggle_receive_updates$"))
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 12. ACCOUNT / AUTH COMMANDS
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("start",   start))
+    application.add_handler(CommandHandler("login",   start))
+    application.add_handler(CommandHandler("logout",  logout))
+    application.add_handler(CommandHandler("account", accounts))
+    application.add_handler(CommandHandler("help",    help_command))
+    application.add_handler(CommandHandler("id",      get_chat_id))
+    application.add_handler(CommandHandler("export_data", handle_export_data))
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 13. ADMIN PANEL
+    # ─────────────────────────────────────────────────────────────────────────────
+    application.add_handler(CommandHandler("getid",           getid_command))
+    application.add_handler(CommandHandler("stats",           stats_command))
+    application.add_handler(CommandHandler("broadcast",       broadcast_command))
+    application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
+
+    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID),handle_broadcast_message,))
+    application.add_handler(CallbackQueryHandler(_common_menu_handler, pattern="^_common_menu:"))
+    application.add_handler(CallbackQueryHandler(close_stats,          pattern="close_stats"))
+    application.add_handler(CallbackQueryHandler(cancel_broadcast,     pattern="^cancel_broadcast$"))
+    application.add_handler(CallbackQueryHandler(youtube_quality_callback, pattern="^yt_quality\\|.*$"))
+    
 ################################
 # Error Handler
 ################################
