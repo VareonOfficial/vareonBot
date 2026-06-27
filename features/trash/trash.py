@@ -206,7 +206,7 @@ async def _show_confirm(query, action_key: str, message: str):
     keyboard = [
         [
             InlineKeyboardButton("✅ Yes, Delete", callback_data=f"trash_confirm:{action_key}"),
-            InlineKeyboardButton("❌ Cancel",      callback_data="trash_action:refresh"),
+            InlineKeyboardButton("❌ Cancel",      callback_data="trash_action:refresh", style="danger"),
         ]
     ]
     await query.edit_message_text(

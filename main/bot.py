@@ -46,6 +46,7 @@ from features.cookies.set_cookies import cookies, cookies_menu, save_cookie
 from features.trash.trash import trash, trash_file_detail
 from features.trash.trash_handlers import (trash_action_handler, trash_file_action_handler, trash_page_handler,
                                            trash_toggle_handler, trash_select_action_handler, trash_confirm_handler)
+from features.trash.purge import start_purge_scheduler
 from features.shared.stats import stats_command, close_stats
 from features.shared.storage import storage, refresh_storage
 from main.state import sessions
@@ -803,6 +804,9 @@ async def run_all():
         except Exception as e2:
             logger.error(f"Failed to cache private group peer: {e2}")
 
+    # ── Start purge scheduler ───────────────────────────────────────
+    logger.info("Starting purge scheduler...")
+    start_purge_scheduler()
     # ── PTB Application ──────────────────────────────────────────────
     logger.info("Starting PTB application...")
     application = Application.builder().token(BOT_TOKEN).build()
