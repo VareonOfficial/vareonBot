@@ -199,17 +199,15 @@ def run_migrations(cursor):
                 size INTEGER NOT NULL
             )
         """)
-        cursor.execute("""
+        cursor.executescript("""
             CREATE TABLE IF NOT EXISTS broadcast_settings (
                 telegram_user_id INTEGER PRIMARY KEY,
                 receive_updates INTEGER DEFAULT 1
-            )
-        """)
-        cursor.execute("""
+            );
+
             INSERT OR IGNORE INTO broadcast_settings (telegram_user_id, receive_updates)
             SELECT telegram_user_id, 1
             FROM telegram_auth;
-
         """)
         set_db_version(cursor, 1)
 # ==============================
