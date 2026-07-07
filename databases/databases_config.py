@@ -28,7 +28,12 @@ def run_migrations(cursor):
     # ------------------------------
     # ✅ Version 1 → Base Tables
     # ------------------------------
-    if current_version < 1:
+    if current_version < 5:
+        #cursor.execute("DROP TABLE IF EXISTS live_logs")
+        cursor.execute("DROP TABLE IF EXISTS broadcast_settings")
+        cursor.execute("DELETE FROM download_links;")
+        cursor.execute("DROP TABLE IF EXISTS user_reports")
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS restore_users (
                 telegram_id INTEGER PRIMARY KEY,
@@ -65,8 +70,7 @@ def run_migrations(cursor):
                 default_download_path TEXT,
                 receive_updates INTEGER DEFAULT 0
             )
-        """)
-        
+        """)  
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,27 +82,12 @@ def run_migrations(cursor):
                 total_messages INTEGER,
                 message_summary TEXT,
                 status TEXT DEFAULT 'PENDING',        -- PENDING, UR, RESOLVED, CLOSED
+                group_msg_id INTEGER,
+                priority TEXT CHECK(priority IN ('Low', 'Medium', 'High')),
                 updated_at TIMESTAMP NULL,            -- Updates whenever status changes
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-        logger.info("[DB] Migrated to v1")
-        set_db_version(cursor, 1)
-
-
-
-    # ------------------------------
-    # ✅ Version 2
-    # ------------------------------
-    if current_version < 2:
-        cursor.execute("ALTER TABLE user_reports ADD COLUMN group_msg_id INTEGER;")
-        cursor.execute("ALTER TABLE user_reports ADD COLUMN priority TEXT CHECK(priority IN ('Low', 'Medium', 'High'));")
-
-        logger.info("[DB] Migrated to v2")
-        set_db_version(cursor, 2)
-        
-    if current_version < 3:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS support_tickets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,14 +113,6 @@ def run_migrations(cursor):
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_support_user_id ON support_tickets (telegram_user_id);")
-        
-        logger.info("[DB] Migrated to v3: Added support_tickets table")
-        set_db_version(cursor, 3)
-
-    if current_version < 5:
-        #cursor.execute("DROP TABLE IF EXISTS live_logs")
-        cursor.execute("DROP TABLE IF EXISTS broadcast_settings")
-        cursor.execute("DELETE FROM download_links;")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS live_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -230,7 +211,7 @@ def run_migrations(cursor):
             FROM telegram_auth;
 
         """)
-        set_db_version(cursor, 4)
+        set_db_version(cursor, 1)
 # ==============================
 # 🔹 Initialize DB
 # ==============================
