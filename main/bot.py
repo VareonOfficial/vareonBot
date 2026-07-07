@@ -267,12 +267,6 @@ async def start(update: Update, context: CallbackContext) -> None:
         )
         return
 
-    # Special broadcast user
-    if user_id == 1074000261:
-        if str(user_id) not in broadcast_settings:
-            broadcast_settings[str(user_id)] = {"receive_updates": True}
-            save_broadcast_settings(broadcast_settings)
-
     # Deep link login (after web login)
     if args and len(args) > 0:
         token = args[0].strip()
@@ -441,11 +435,6 @@ async def logout(update: Update, context: CallbackContext) -> int:
     )
 
     return ConversationHandler.END
-
-# Function to save broadcast settings
-def save_broadcast_settings(settings):
-    """Save the broadcast settings to a file or database (implementation needed)."""
-    pass  # Implement actual saving mechanism
 
 ################################
 # Help function

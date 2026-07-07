@@ -49,13 +49,6 @@ def run_migrations(cursor):
         """)
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS broadcast_settings (
-                telegram_user_id INTEGER PRIMARY KEY,
-                receive_updates INTEGER DEFAULT 1
-            )
-        """)
-
-        cursor.execute("""
             CREATE TABLE IF NOT EXISTS broadcast_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 broadcast_id TEXT,
@@ -137,6 +130,7 @@ def run_migrations(cursor):
 
     if current_version < 5:
         #cursor.execute("DROP TABLE IF EXISTS live_logs")
+        cursor.execute("DROP TABLE IF EXISTS broadcast_settings")
         cursor.execute("DELETE FROM download_links;")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS live_logs (
@@ -223,6 +217,18 @@ def run_migrations(cursor):
                 deleted_at TIMESTAMP NOT NULL,
                 size INTEGER NOT NULL
             )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_settings (
+                telegram_user_id INTEGER PRIMARY KEY,
+                receive_updates INTEGER DEFAULT 1
+            )
+        """)
+        cursor.execute("""
+            INSERT OR IGNORE INTO broadcast_settings (telegram_user_id, receive_updates)
+            SELECT telegram_user_id, 1
+            FROM telegram_auth;
+
         """)
         set_db_version(cursor, 4)
 # ==============================
