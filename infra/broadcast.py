@@ -72,7 +72,6 @@ broadcast_settings = load_broadcast_settings()
 async def broadcast_command(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     if user_id != ADMIN_ID:
-        await update.message.reply_text("❌ You are not authorized to use this command.")
         return ConversationHandler.END
     
     # Terminate any ongoing conversation
@@ -173,8 +172,13 @@ async def handle_broadcast_message(update: Update, context: CallbackContext):
     # ✅ Clear broadcast mode only after forwarding
     broadcast_mode.pop(user_id, None)
 
+    logger.info(f"Broadcast completed: Sent to {sent_count}, Failed to {failed_count}")
     await update.message.reply_text(
-        f"✅ Broadcast sent to {sent_count} user(s).\n❌ Failed to send to {failed_count}."
+        f"✅ Broadcast sent successfully!\n\n"
+        f"📤 Sent to: {sent_count} user(s)\n"
+        f"❌ Failed: {failed_count}\n\n"
+        f"🗑️ To delete this broadcast for all users, run:\n"
+        f"/deletebroadcast"
     )
 
 def add_message_record(broadcast_id, chat_id, message_id):

@@ -763,7 +763,7 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("broadcast",       broadcast_command))
     application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
 
-    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID),handle_broadcast_message,))
+    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID),handle_broadcast_message,), group=-4)
     application.add_handler(CallbackQueryHandler(_common_menu_handler, pattern="^_common_menu:"))
     application.add_handler(CallbackQueryHandler(close_stats,          pattern="close_stats"))
     application.add_handler(CallbackQueryHandler(cancel_broadcast,     pattern="^cancel_broadcast$"))
