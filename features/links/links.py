@@ -26,18 +26,32 @@ from vareon_analytics.vr_log import log_to_db, generate_task_id
 # Link Download/Upload Handlers
 ################################
 
-URL_PATTERN = re.compile(r"^https?://.*")
+URL_PATTERN = re.compile(r"^https?://\S+$")
 YOUTUBE_PATTERN = re.compile(
     r'(https?://)?(www\.)?(youtube\.com|youtu\.be|youtube\.com/shorts|youtube\.com/live|youtube\.com/playlist)/',
     re.IGNORECASE
 )
 
 # @log_wrapper("/link")
-async def link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    text = update.message.text.strip()
     
-    logger.info(f"[LINK_HANDLER] User {user_id} triggered link command")
+    if user_id not in sessions:
+        logger.warning(f"[LINK_HANDLER] User {user_id} not logged in")
+        await update.message.reply_text("❌ Please login first using /login.")
+        return
+
+    logger.info(f"[LINK_HANDLER] User {user_id} requested help text")
+    await update.message.reply_text(
+        "✨ *VareonBot is Always Ready*\n\n"
+        "I am standing by. You do not need to use any commands. "
+        "Simply send or forward any link directly to this chat, "
+        "and I will immediately begin processing it based on your instructions. 🚀",
+        parse_mode="Markdown"
+    )
+
+async def link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str):
+    user_id = update.message.from_user.id
     
     if user_id not in sessions:
         logger.warning(f"[LINK_HANDLER] User {user_id} not logged in")
@@ -46,28 +60,10 @@ async def link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if report_mode.get(user_id, False):
         logger.info(f"[LINK_HANDLER] User {user_id} in report mode, ignoring")
         return
-
-    if text == "/link":
-        logger.info(f"[LINK_HANDLER] User {user_id} requested help text")
-        await update.message.reply_text(
-            "📌 To use this feature, send a valid link after the command.\n\n"
-            "✅ Example:\n"
-            "`/link https://example.com/file.zip`\n\n"
-            "This will start the link processing and present download options. "
-            "Please provide a proper link to continue.",
-            parse_mode="Markdown"
-        )
-        return
-
-    if not text.startswith("/link "):
-        return
-
-    url = text[6:].strip()
-    logger.info(f"[LINK_HANDLER] URL received: {url}")
     
+    logger.info(f"[LINK_HANDLER] URL received: {url}")
     if not URL_PATTERN.match(url):
         logger.warning(f"[LINK_HANDLER] Invalid URL from user {user_id}: {url}")
-        await update.message.reply_text("❌ Invalid URL. Please provide a valid link.")
         return
     
     context.user_data["link_url"] = url

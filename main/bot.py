@@ -14,16 +14,16 @@ from main.config import pg_conn_auth, get_user_details_from_db, SUPPORT_GROUP_ID
 
 import config, state
 
-from search_config import search
-from search_config.constants import (
-    GAMELEECH_PARTS, GAMELEECH_CHOICE, SEARCH_CHOICE, SEARCH_OPTION,
-    SEARCH_RANGE, ANIMEFLIX_EPISODE_RANGE, TOONWORLD_QUALITY,
-)
-from search_config.toonworld4all import handle_toonworld4all_quality, handle_toonworld_quality_choice
-from search_config.animeflix import animeflix_episode_range
-from search_config.moviesmod import handle_episode_range
-from search_config.bollyflix import choose_bollyflix_result
-from search_config.gamesleech import handle_gamesleech_zip, handle_gamesleech_parts
+# from search_config import search
+# from search_config.constants import (
+#     GAMELEECH_PARTS, GAMELEECH_CHOICE, SEARCH_CHOICE, SEARCH_OPTION,
+#     SEARCH_RANGE, ANIMEFLIX_EPISODE_RANGE, TOONWORLD_QUALITY,
+# )
+# from search_config.toonworld4all import handle_toonworld4all_quality, handle_toonworld_quality_choice
+# from search_config.animeflix import animeflix_episode_range
+# from search_config.moviesmod import handle_episode_range
+# from search_config.bollyflix import choose_bollyflix_result
+# from search_config.gamesleech import handle_gamesleech_zip, handle_gamesleech_parts
 
 from features.music.music import music, music_search_pick_callback
 from report.report import report_command, report_buttons
@@ -31,7 +31,7 @@ from report.report_history import view_report_details, report_history, delete_re
 from report.send_report import handle_report_message, handle_report_subject, finish_report, handle_priority_selection
 from report.chat import handle_admin_reply, start_user_reply, finish_user_reply
 from features.cancel.cancel import cancel_process
-from features.links.links import link_handler, download_button_handler
+from features.links.links import link_command, download_button_handler
 from features.links.pause_resume import resume_download, pause_download
 from features.shared.yt_dlp import youtube_quality_callback
 from features.myfiles.myfiles import myfiles, myfiles_callback
@@ -49,6 +49,7 @@ from features.trash.trash_handlers import (trash_action_handler, trash_file_acti
 from features.trash.purge import start_purge_scheduler
 from features.shared.stats import stats_command, close_stats
 from features.shared.storage import storage, refresh_storage
+from chatbot.message import message_handler
 from main.state import sessions
 from main.utils import cache_file_id, getid_command, _common_menu_handler
 from main.config import (
@@ -562,40 +563,40 @@ def setup_handlers(application: Application) -> None:
     # ─────────────────────────────────────────────────────────────────────────────
     # 2.  SEARCH  (/search → text input → results → episode range, etc.)
     # ─────────────────────────────────────────────────────────────────────────────
-    search_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler("search", search.start_search),
-        ],
-        states={
-            SEARCH_CHOICE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, search.choose_result),
-            ],
-            SEARCH_OPTION: [
-                CallbackQueryHandler(search.select_option,          pattern=r"^opt_"),
-                CallbackQueryHandler(handle_toonworld4all_quality,  pattern=r"^tw_opt_\d+$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, choose_bollyflix_result),
-            ],
-            TOONWORLD_QUALITY: [
-                CallbackQueryHandler(handle_toonworld_quality_choice, pattern=r"^tw_quality_\d+$"),
-            ],
-            SEARCH_RANGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_episode_range),
-            ],
-            ANIMEFLIX_EPISODE_RANGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, animeflix_episode_range),
-            ],
-            GAMELEECH_CHOICE: [
-                CallbackQueryHandler(handle_gamesleech_zip, pattern=r"^GAMELEECH_ZIP$"),
-            ],
-            GAMELEECH_PARTS: [
-                # ZIP button must remain reachable even while waiting for part text input
-                CallbackQueryHandler(handle_gamesleech_zip,   pattern=r"^GAMELEECH_ZIP$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gamesleech_parts),
-            ],
-        },
-        fallbacks=[],
-        allow_reentry=True,)
-    application.add_handler(search_handler)
+    # search_handler = ConversationHandler(
+    #     entry_points=[
+    #         CommandHandler("search", search.start_search),
+    #     ],
+    #     states={
+    #         SEARCH_CHOICE: [
+    #             MessageHandler(filters.TEXT & ~filters.COMMAND, search.choose_result),
+    #         ],
+    #         SEARCH_OPTION: [
+    #             CallbackQueryHandler(search.select_option,          pattern=r"^opt_"),
+    #             CallbackQueryHandler(handle_toonworld4all_quality,  pattern=r"^tw_opt_\d+$"),
+    #             MessageHandler(filters.TEXT & ~filters.COMMAND, choose_bollyflix_result),
+    #         ],
+    #         TOONWORLD_QUALITY: [
+    #             CallbackQueryHandler(handle_toonworld_quality_choice, pattern=r"^tw_quality_\d+$"),
+    #         ],
+    #         SEARCH_RANGE: [
+    #             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_episode_range),
+    #         ],
+    #         ANIMEFLIX_EPISODE_RANGE: [
+    #             MessageHandler(filters.TEXT & ~filters.COMMAND, animeflix_episode_range),
+    #         ],
+    #         GAMELEECH_CHOICE: [
+    #             CallbackQueryHandler(handle_gamesleech_zip, pattern=r"^GAMELEECH_ZIP$"),
+    #         ],
+    #         GAMELEECH_PARTS: [
+    #             # ZIP button must remain reachable even while waiting for part text input
+    #             CallbackQueryHandler(handle_gamesleech_zip,   pattern=r"^GAMELEECH_ZIP$"),
+    #             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gamesleech_parts),
+    #         ],
+    #     },
+    #     fallbacks=[],
+    #     allow_reentry=True,)
+    # application.add_handler(search_handler)
 
     # ─────────────────────────────────────────────────────────────────────────────
     # 3.  MYFILES  — file manager (browse, rename, move, new folder)
@@ -705,11 +706,11 @@ def setup_handlers(application: Application) -> None:
     # ─────────────────────────────────────────────────────────────────────────────
     # 6.  LINK — URL downloads, pause, resume
     # ─────────────────────────────────────────────────────────────────────────────
-    application.add_handler(CommandHandler("link", link_handler))
+    application.add_handler(CommandHandler("link", link_command))
     application.add_handler(CallbackQueryHandler(download_button_handler, pattern="^start_download$"))
     application.add_handler(CallbackQueryHandler(pause_download,          pattern="^pause_download$"))
     application.add_handler(CallbackQueryHandler(resume_download,         pattern="^resume_download$"))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, link_handler))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
     # ─────────────────────────────────────────────────────────────────────────────
     # 7.  MUSIC

@@ -62,6 +62,4 @@ RUN pip install -r requirements.txt
 RUN pip install tgcrypto 
 
 COPY . .
-RUN chmod +x /app/search_config/vsearch/vsearch.py && \
-    ln -sf /app/search_config/vsearch/vsearch.py /usr/local/bin/vsearch
 CMD ["python", "main/bot.py"]
