@@ -27,8 +27,12 @@ from vareon_analytics.vr_log import log_to_db, generate_task_id
 ################################
 
 URL_PATTERN = re.compile(r"^https?://\S+$")
-YOUTUBE_PATTERN = re.compile(
+YT_PATTERN = re.compile(
     r'(https?://)?(www\.)?(youtube\.com|youtu\.be|youtube\.com/shorts|youtube\.com/live|youtube\.com/playlist)/',
+    re.IGNORECASE
+)
+YT_SHORTS_PATTERN = re.compile(
+    r'(https?://)?(www\.)?youtube\.com/shorts/',
     re.IGNORECASE
 )
 
@@ -69,7 +73,7 @@ async def link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, url: 
     context.user_data["link_url"] = url
 
     # Detect YouTube and set mode
-    if YOUTUBE_PATTERN.search(url):
+    if YT_PATTERN.search(url):
         context.user_data["youtube_mode"] = True
         logger.info(f"[LINK_HANDLER] YouTube URL detected: {url}")
     else:
@@ -179,9 +183,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Failed to fetch file info:\n{e}")
             return
     msg1 = await show_download_folder_menu(update, context)  
-    msg2 = await show_shorts_upload_prompt(update, context)
     context.user_data["folder_menu_msg_id"] = msg1.message_id
-    context.user_data["shorts_prompt_msg_id"] = msg2.message_id
+    if YT_SHORTS_PATTERN.search(url):
+        msg2 = await show_shorts_upload_prompt(update, context)
+        context.user_data["shorts_prompt_msg_id"] = msg2.message_id
     
 def file_exists_in_dir(download_path: str, base_name: str) -> str | None:
     """
