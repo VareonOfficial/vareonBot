@@ -30,6 +30,8 @@ def run_migrations(cursor):
     # ------------------------------
     if current_version < 5:
         #cursor.execute("DROP TABLE IF EXISTS live_logs")
+        cursor.execute("DROP TRIGGER IF EXISTS create_broadcast_entry;")
+        cursor.execute("DROP TRIGGER IF EXISTS delete_broadcast_entry;")
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS restore_users (
