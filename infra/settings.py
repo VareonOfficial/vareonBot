@@ -16,6 +16,9 @@ async def settings(update: Update, context: CallbackContext):
 
     if report_mode.get(user_id, False):
         return
+    if user_id not in sessions:
+        await update.message.reply_text("❌ Please login first using /login.")
+        return
 
     try:
         conn = sqlite3.connect(VAREON_DB)

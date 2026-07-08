@@ -33,6 +33,8 @@ def run_migrations(cursor):
         cursor.execute("DROP TABLE IF EXISTS broadcast_settings")
         cursor.execute("DELETE FROM download_links;")
         cursor.execute("DROP TABLE IF EXISTS user_reports")
+        cursor.execute("DROP TABLE IF EXISTS user_settings")
+        cursor.execute("DROP TABLE IF EXISTS support_tickets")
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS restore_users (
@@ -62,15 +64,6 @@ def run_migrations(cursor):
                 timestamp TEXT
             )
         """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS user_settings (
-                telegram_user_id INTEGER PRIMARY KEY,
-                default_download_enabled INTEGER DEFAULT 0,
-                default_download_path TEXT,
-                receive_updates INTEGER DEFAULT 0
-            )
-        """)  
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,12 +193,14 @@ def run_migrations(cursor):
             )
         """)
         cursor.executescript("""
-            CREATE TABLE IF NOT EXISTS broadcast_settings (
+            CREATE TABLE IF NOT EXISTS user_settings (
                 telegram_user_id INTEGER PRIMARY KEY,
+                default_download_enabled INTEGER DEFAULT 0,
+                default_download_path TEXT,
                 receive_updates INTEGER DEFAULT 1
             );
 
-            INSERT OR IGNORE INTO broadcast_settings (telegram_user_id, receive_updates)
+            INSERT OR IGNORE INTO user_settings (telegram_user_id, receive_updates)
             SELECT telegram_user_id, 1
             FROM telegram_auth;
         """)
