@@ -334,20 +334,17 @@ async def start(update: Update, context: CallbackContext) -> None:
 
                 # Add/Update broadcast settings
                 cursor.execute("""
-                    INSERT INTO broadcast_settings (telegram_user_id, receive_updates)
+                    INSERT INTO user_settings (telegram_user_id, receive_updates)
                     VALUES (?, 1)
                     ON CONFLICT(telegram_user_id) DO NOTHING
                 """, (user_id,))
                 # Add to live in-memory broadcast list immediately
                 if str(user_id) not in broadcast_settings:
                     broadcast_settings[str(user_id)] = {"receive_updates": True}
-                    logger.info(f"[BROADCAST] Added new user {user_id} to live broadcast list")
-
                 conn.commit()
                 conn.close()
-
-                logger.info(f"[SQLITE AUTH] Updated telegram_auth & broadcast_settings for telegram_user_id={user_id}, vareon_id={vareon_id}")
-
+                
+                logger.info(f"[LOGIN] Added DB rows (restore_users, telegram_auth, user_settings) for telegram_id={user_id}, vareon_id={vareon_id}")
             except Exception as e:
                 logger.error(f"[SQLITE AUTH ERROR] {e}")
 
@@ -412,19 +409,17 @@ async def logout(update: Update, context: CallbackContext) -> int:
                 WHERE vareon_id = ? AND telegram_user_id = ?
             """, (vareon_id, user_id))
 
-        # 🔥 Remove from broadcast_settings
+        # 🔥 Remove from broadcast settings
         cursor.execute("""
-            DELETE FROM broadcast_settings
+            DELETE FROM user_settings
             WHERE telegram_user_id = ?
         """, (user_id,))
         # Remove from live in-memory list
         broadcast_settings.pop(str(user_id), None)
-        logger.info(f"[BROADCAST] Removed user {user_id} from live broadcast list")
-
         conn.commit()
         conn.close()
 
-        logger.info(f"[LOGOUT] Removed DB rows for telegram_id={user_id}, vareon_id={vareon_id}")
+        logger.info(f"[LOGOUT] Removed DB rows (restore_users, telegram_auth, user_settings) for telegram_id={user_id}, vareon_id={vareon_id}")
 
     except Exception as e:
         logger.error(f"[LOGOUT ERROR] DB delete failed: {e}")

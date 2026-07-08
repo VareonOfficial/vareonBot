@@ -24,7 +24,7 @@ def save_broadcast_settings(data):
                 receive_updates = 1 if settings.get("receive_updates") else 0
 
                 cursor.execute("""
-                    INSERT INTO broadcast_settings (telegram_user_id, receive_updates)
+                    INSERT INTO user_settings (telegram_user_id, receive_updates)
                     VALUES (?, ?)
                     ON CONFLICT(telegram_user_id) DO UPDATE SET
                         receive_updates=excluded.receive_updates
@@ -47,7 +47,7 @@ def load_broadcast_settings() -> dict:
 
         cursor.execute("""
             SELECT telegram_user_id 
-            FROM broadcast_settings 
+            FROM user_settings 
             WHERE receive_updates = 1
         """)
         
@@ -108,7 +108,8 @@ async def handle_broadcast_message(update: Update, context: CallbackContext):
     broadcast_id = datetime.now().strftime("%Y%m%d%H%M%S")
     message = update.message
     sent_count, failed_count = 0, 0
-
+    
+    broadcast_settings = load_broadcast_settings()
     for target_id, prefs in broadcast_settings.items():
         if prefs.get("receive_updates"):
             try:
