@@ -30,11 +30,6 @@ def run_migrations(cursor):
     # ------------------------------
     if current_version < 5:
         #cursor.execute("DROP TABLE IF EXISTS live_logs")
-        cursor.execute("DROP TABLE IF EXISTS broadcast_settings")
-        cursor.execute("DELETE FROM download_links;")
-        cursor.execute("DROP TABLE IF EXISTS user_reports")
-        cursor.execute("DROP TABLE IF EXISTS user_settings")
-        cursor.execute("DROP TABLE IF EXISTS support_tickets")
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS restore_users (
