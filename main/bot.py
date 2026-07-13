@@ -442,7 +442,7 @@ async def help_command(update: Update, context: CallbackContext) -> None:
 ━━━━━━━━━━━━━━━━
 👤 *Account*
 ━━━━━━━━━━━━━━━━
-`/login` — Redirects you to vareon\.top for web auth\. Log in with Google or your manual account — the bot links automatically after token verification\.
+`/login` — Redirects you to accounts\.vareon\.top for web auth\. Log in with Google or your manual account — the bot links automatically after token verification\.
 `/logout` — Ends your session\. Most features are disabled until you log in again\.
 `/account` — View your current account details and session info\.
 `/settings` — Set a default download folder and toggle bot update notifications\.
