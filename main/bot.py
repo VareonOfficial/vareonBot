@@ -53,8 +53,8 @@ from chatbot.message import message_handler
 from main.state import sessions
 from main.utils import cache_file_id, getid_command, _common_menu_handler
 from main.config import (
-    VAREON_DB, logger, ADMIN_ID, PRIVATE_GROUP_LINK, PYRO_SESSION_TXT,
-    RENAME, MOVE_FOLDER, NEW_FOLDER, BOT_TOKEN, USERS_PATH, TELETHON_SESSION_TXT,
+    VAREON_DB, logger, ADMIN_ID, PRIVATE_GROUP_LINK, RENAME, MOVE_FOLDER, NEW_FOLDER, 
+    BOT_TOKEN, USERS_PATH, TELETHON_SESSION_TXT,
 )
 from vareon_analytics.vr_log import log_wrapper
 from vareon_analytics.export_data import handle_export_data
@@ -158,7 +158,6 @@ def restore_sessions(application):
 ################################
 # Configuration and Constants
 ################################
-PYRO_SESSION_STRING     = PYRO_SESSION_TXT.read_text().strip()
 TELETHON_SESSION_STRING = TELETHON_SESSION_TXT.read_text().strip()
 
 state.pyro_bot_client = PyroClient(

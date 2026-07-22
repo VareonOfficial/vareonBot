@@ -71,7 +71,6 @@ VAREON_DB = DATABASE_DIR / "vareon.db"
 
 # TDL Database
 STORAGE_PATH = BASE_DIR / "tdl_session" / "tdl.db"
-PYRO_SESSION_TXT = DATA_DIR / "pyro_user_session.txt"
 TELETHON_SESSION_TXT = DATA_DIR / "telethon_user_session.txt"
 
 ############################################
