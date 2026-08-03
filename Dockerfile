@@ -15,7 +15,7 @@ COPY --from=node:24-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
 # Install 7z
-RUN wget -q https://github.com/ip7z/7zip/releases/download/26.01/7z2601-linux-x64.tar.xz \
+RUN wget -q https://github.com/ip7z/7zip/releases/download/26.02/7z2602-linux-x64.tar.xz \
     -O /tmp/7z.tar.xz \
     && tar -xf /tmp/7z.tar.xz -C /tmp \
     && mv /tmp/7zz /usr/local/bin/7z \
@@ -38,14 +38,6 @@ RUN wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
     && chmod +x /usr/local/bin/yt-dlp \
     && yt-dlp --version
 
-# Install ffmpeg as a static binary
-RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
-    && tar -xf ffmpeg-release-amd64-static.tar.xz \
-    && mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/ffmpeg \
-    && mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/ffprobe \
-    && rm -rf ffmpeg-*-amd64-static* \
-    && ffmpeg -version
-
 # Install tdl
 RUN wget -q https://github.com/iyear/tdl/releases/latest/download/tdl_Linux_64bit.tar.gz \
     && tar -xzf tdl_Linux_64bit.tar.gz \
@@ -53,6 +45,14 @@ RUN wget -q https://github.com/iyear/tdl/releases/latest/download/tdl_Linux_64bi
     && chmod +x /usr/local/bin/tdl \
     && rm tdl_Linux_64bit.tar.gz
 
+# Install ffmpeg as a static binary
+RUN wget -q https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
+    && tar -xf ffmpeg-master-latest-linux64-gpl.tar.xz \
+    && mv ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/local/bin/ffmpeg \
+    && mv ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/ffprobe \
+    && rm -rf ffmpeg-master-latest-linux64-gpl* \
+    && ffmpeg -version
+    
 WORKDIR /app
 ENV PYTHONPATH=/app
 
