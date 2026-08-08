@@ -4,6 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ConversationHandler, CallbackContext
 from main.state import sessions, report_mode
 from main.config import logger, USERS_PATH
+from vareon_analytics.vr_log import log_to_db
 
 ################################
 # Constants
@@ -51,17 +52,19 @@ def build_bar(percentage):
     filled = max(0, min(BAR_BLOCKS, filled))
     return BAR_FILLED * filled + BAR_EMPTY * (BAR_BLOCKS - filled)
 
-
-def get_status(percentage):
-    if percentage >= 99:
-        return "🔴 Full"
-    elif percentage >= 90:
-        return "🟠 Warning"
-    elif percentage >= 80:
-        return "🟡 Optimized"
-    else:
-        return "🟢 Healthy"
-
+# to display
+def get_status(percentage): 
+    if percentage >= 99: return "🔴 Full"
+    elif percentage >= 90: return "🟠 Warning"
+    elif percentage >= 80: return "🟡 Optimized"
+    else: return "🟢 Healthy"
+    
+# to store in db and query from db internaly
+def get_status_plain(percentage):
+    if percentage >= 99: return "full"
+    elif percentage >= 90: return "warning"
+    elif percentage >= 80: return "optimized"
+    else: return "healthy"
 
 def get_recycle_bin_details(user_folder):
     trash_path = os.path.join(user_folder, ".trash")
@@ -167,13 +170,26 @@ def build_storage_dashboard(vareon_id):
         "╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n\n"
         "  💡 <i>Use /trash to empty the bin</i>"
     )
-    return msg
+    log_details = {
+        "storage_summary": {
+            "used_bytes": int(used_bytes),
+            "total_bytes": STORAGE_QUOTA_BYTES,
+            "free_bytes": int(free_bytes),
+            "file_count": file_count,
+            "status": get_status_plain(pct),
+        },
+        "trash_summary": {
+            "used_bytes": int(trash_bytes),
+            "file_count": trash_files,
+        },
+    }
+
+    return msg, log_details
 
 
 def build_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Refresh",   callback_data="refresh_storage")],
-        [InlineKeyboardButton("🗑 Empty Bin", callback_data="trash_action:empty_bin")],
         [InlineKeyboardButton("❌ Close",     callback_data="_common_menu:close:storage", style="danger")],
     ])
 
@@ -198,9 +214,27 @@ async def storage(update: Update, context: CallbackContext):
         return
 
     try:
-        dashboard = build_storage_dashboard(vareon_id)
+        dashboard, log_details = build_storage_dashboard(vareon_id)
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="STORAGE_INSIGHT",
+            function_name="storage",
+            task_id=None,
+            details=log_details,
+            action_status={"status": "success"},
+        )
     except Exception as e:
         logger.error(f"Storage fetch failed for {session_data}: {e}")
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="STORAGE_INSIGHT",
+            function_name="storage",
+            task_id=None,
+            details={},
+            action_status={"status": "error"},
+        )
         await update.message.reply_text("❌ Failed to fetch storage details.")
         return
 
@@ -238,7 +272,7 @@ async def refresh_storage(update: Update, context: CallbackContext):
     vareon_id    = session_data.get("vareon_id")
 
     try:
-        new_text = build_storage_dashboard(vareon_id)
+        new_text, log_details = build_storage_dashboard(vareon_id)
         keyboard = build_keyboard()
         await edit_message_if_changed(
             context, chat_id, message_id,

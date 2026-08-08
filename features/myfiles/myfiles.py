@@ -17,11 +17,13 @@ from features.myfiles.move import multi_move, show_move_folder_menu
 from features.myfiles.upload import run_tdl_upload
 from main.config import (logger, USERS_PATH, TELEGRAM_MAX_FILE_SIZE)
 from main.state import sessions
+from vareon_analytics.vr_log import log_wrapper
 
 ################################
 # Myfiles setup here
 ################################
 
+@log_wrapper(event_type="COMMAND", function_name="myfiles")
 async def myfiles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = None
     chat = None
