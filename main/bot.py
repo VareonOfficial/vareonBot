@@ -378,6 +378,7 @@ async def start(update: Update, context: CallbackContext) -> None:
 async def login(update: Update, context: CallbackContext) -> None:
     await start(update, context)
     
+@log_wrapper(event_type="COMMAND", function_name="logout")
 async def logout(update: Update, context: CallbackContext) -> int:
     user_id = update.message.from_user.id
 
@@ -434,47 +435,48 @@ async def logout(update: Update, context: CallbackContext) -> int:
 # Help function
 ################################
 
+@log_wrapper(event_type="COMMAND", function_name="help")
 async def help_command(update: Update, context: CallbackContext) -> None:
     help_text = """
-✦ *VAREON Bot — Command Reference*
+✦ <b>VAREON Bot — Command Reference</b>
 
 ━━━━━━━━━━━━━━━━
-👤 *Account*
+👤 <b>Account</b>
 ━━━━━━━━━━━━━━━━
-`/login` — Redirects you to accounts\.vareon\.top for web auth\. Log in with Google or your manual account — the bot links automatically after token verification\.
-`/logout` — Ends your session\. Most features are disabled until you log in again\.
-`/account` — View your current account details and session info\.
-`/settings` — Set a default download folder and toggle bot update notifications\.
+<code>/login</code> — Redirects you to accounts.vareon.top for web auth. Log in with Google or your manual account — the bot links automatically after token verification. Want a quick video walkthrough? Check <a href="https://t.me/VareonNews/4">this short video</a>.
+<code>/logout</code> — Ends your session. Most features are disabled until you log in again.
+<code>/account</code> — View your current account details and session info.
+<code>/settings</code> — Set a default download folder and toggle bot update notifications.
 
 ━━━━━━━━━━━━━━━━
-⬇️ *Downloads*
+⬇️ <b>Downloads</b>
 ━━━━━━━━━━━━━━━━
-`/link` — Paste a direct URL, YouTube video, short, or playlist to download it straight to your storage at high speed\.
-`/music` — Download tracks from Spotify or YouTube\. Choose to save to your directory or send the file back to Telegram\.
-`/cookies` — Set your Spotify or YouTube cookies to unlock premium downloads\. Your cookies are handled securely — never share them with anyone outside this bot\.
+<code>/link</code> — Paste a direct URL, YouTube video, short, or playlist to download it straight to your storage at high speed.
+<code>/music</code> — Download tracks from Spotify or YouTube. Choose to save to your directory or send the file back to Telegram.
+<code>/cookies</code> — Set your Spotify or YouTube cookies to unlock premium downloads. <i>Your cookies are handled securely — never share them with anyone outside this bot.</i>
 
 ━━━━━━━━━━━━━━━━
-📁 *Files & Storage*
+📁 <b>Files &amp; Storage</b>
 ━━━━━━━━━━━━━━━━
-`/myfiles` — Browse your folders and files\. Select multiple items to move, compress, or delete them\. Generate high\-speed download links for any file or folder\.
-`/storage` — See how much storage you've used and a breakdown of what's taking up space\.
+<code>/myfiles</code> — Browse your folders and files. Select multiple items to move, compress, or delete them. Generate high-speed download links for any file or folder.
+<code>/storage</code> — See how much storage you've used and a breakdown of what's taking up space.
 
 ━━━━━━━━━━━━━━━━
-🔍 *Search*
+🔍 <b>Search</b>
 ━━━━━━━━━━━━━━━━
-`/search` — Search for movies, apps, software, and games instantly — no need to visit external sites\.
+<code>/search</code> — Search for movies, apps, software, and games instantly — no need to visit external sites.
 
 ━━━━━━━━━━━━━━━━
-🛠 *Support & Control*
+🛠 <b>Support &amp; Control</b>
 ━━━━━━━━━━━━━━━━
-`/report` — Report a bug with subject, priority, and details\. Also opens a direct line to the developer — you can view report history or request contact from here\.
-`/cancel` — Stop any active download or ongoing process and reset the bot to a clean state\.
+<code>/report</code> — Report a bug with subject, priority, and details. Also opens a direct line to the developer — you can view report history or request contact from here.
+<code>/cancel</code> — Stop any active download or ongoing process and reset the bot to a clean state.
 
 ━━━━━━━━━━━━━━━━
-📌 *Note:* You must be logged in to use most features\. Use `/login` to get started\.
+📌 <i>Note:</i> You must be logged in to use most features. Use <code>/login</code> to get started.
 """
-    await update.message.reply_text(help_text, parse_mode="MarkdownV2")
-    
+    await update.message.reply_text(help_text, parse_mode="HTML", disable_web_page_preview=True)
+        
 ################################
 # Account setup
 ################################

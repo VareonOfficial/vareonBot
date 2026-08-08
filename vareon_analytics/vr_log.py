@@ -188,17 +188,14 @@ def log_wrapper(
             tg_user_id = None
             vareon_id = None
 
-            # Auto extract from Update object
             if auto_extract_user and args:
                 first_arg = args[0]
                 if hasattr(first_arg, "effective_user") and first_arg.effective_user:
                     tg_user_id = first_arg.effective_user.id
 
-            # Allow manual override via kwargs
             tg_user_id = kwargs.get("tg_user_id") or tg_user_id
             vareon_id = kwargs.get("vareon_id") or vareon_id
 
-            # Get vareon_id from sessions
             if vareon_id is None and tg_user_id:
                 try:
                     session_data = sessions.get(tg_user_id, {})
@@ -206,13 +203,8 @@ def log_wrapper(
                 except:
                     pass
 
-            # Final fallbacks
-            if tg_user_id is None:
-                tg_user_id = 0
-            if vareon_id is None:
-                vareon_id = "unknown"
+            tg_user_id = tg_user_id or 0
 
-            # ===================== EXECUTE FUNCTION =====================
             try:
                 if inspect.iscoroutinefunction(func):
                     result = await func(*args, **kwargs)
@@ -224,24 +216,20 @@ def log_wrapper(
                 logger.error(f"Error in {fn_name}: {e}")
                 raise
             finally:
-                latency_ms = int((time.time() - start_time) * 1000)
-
-                action_status = {
-                    "action": fn_name,
-                    "status": status,
-                    "latency": f"{latency_ms}ms"
-                }
-
-                details = kwargs.get("details", {})
-
-                log_to_db(
-                    vareon_id=vareon_id,
-                    tg_user_id=tg_user_id,
-                    event_type=event_type,
-                    function_name=fn_name,
-                    details=details,
-                    action_status=action_status
-                )
+                if vareon_id:
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    log_to_db(
+                        vareon_id=vareon_id,
+                        tg_user_id=tg_user_id,
+                        event_type=event_type,
+                        function_name=fn_name,
+                        details=kwargs.get("details", {}),
+                        action_status={
+                            "action": fn_name,
+                            "status": status,
+                            "latency": f"{latency_ms}ms"
+                        }
+                    )
 
             return result
 

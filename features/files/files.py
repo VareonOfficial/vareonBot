@@ -221,6 +221,7 @@ async def _do_download(user_id: int, progress_msg, url, path, file_name, context
     eta = "N/A"
     last_update = 0
     download_started = False
+    cancelled_here = False
 
     try:
         while True:
@@ -299,6 +300,32 @@ async def _do_download(user_id: int, progress_msg, url, path, file_name, context
 
     except asyncio.CancelledError:
         logger.info("Download task cancelled")
+        cancelled_here = True
+        
+        download_start_time = context.user_data.get("download_start_time")
+        duration_seconds = (
+            round(time.time() - download_start_time)
+            if download_start_time else None
+        )
+        session_data = sessions.get(user_id, {})
+        vareon_id = session_data.get("vareon_id")
+        task_id = context.user_data.get("task_id")
+        if task_id and vareon_id:
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=user_id,
+                event_type="DOWNLOAD_CANCELED",
+                function_name="_do_download",
+                task_id=task_id,
+                details={
+                    "time_taken": duration_seconds,
+                    "canceled": True,
+                },
+                action_status={
+                    "status": "canceled",
+                    "latency": f"{duration_seconds}s" if duration_seconds is not None else None,
+                },
+            )
     finally:
         if process.returncode is None:
             try:
@@ -393,25 +420,32 @@ async def _do_download(user_id: int, progress_msg, url, path, file_name, context
                     details={
                         "time_taken": time_taken_seconds,
                     },
-                    action_status={"status": "success"},
+                    action_status={
+                    "status": "success",
+                    "latency": f"{time_taken_seconds}s" if time_taken_seconds is not None else None,
+                    },
                 )
         else:
             error_msg = (
                 "❌ Download did not start (check URL or tdl installation)"
                 if not download_started else "❌ Download failed or was cancelled"
             )
-            await progress_msg.edit_text(
-                f"{error_msg}\n\n"
-                f"📄 File: `{file_name}`\n"
-                f"🔢 Exit code: {returncode}",
-                parse_mode="Markdown",
-            )
+            try:
+                await progress_msg.edit_text(
+                    f"{error_msg}\n\n"
+                    f"📄 File: `{file_name}`\n"
+                    f"🔢 Exit code: {returncode}",
+                    parse_mode="Markdown",
+                )
+            except Exception as e:
+                logger.warning(f"Failed to edit final error message: {e}")
+
             logger.error(f"Download failed | Exit: {returncode} | Started: {download_started}")
             if task_id:
                 log_to_db(
                     vareon_id=vareon_id,
                     tg_user_id=user_id,
-                    event_type="DOWNLOAD_FAILED",
+                    event_type="DOWNLOAD_ERROR",
                     function_name="_do_download",
                     task_id=task_id,
                     details={
@@ -419,7 +453,10 @@ async def _do_download(user_id: int, progress_msg, url, path, file_name, context
                         "exit_code": returncode,
                         "download_started": download_started,
                     },
-                    action_status={"status": "failed"},
+                    action_status={
+                        "status": "error",
+                        "latency": f"{time_taken_seconds}s" if time_taken_seconds is not None else None,
+                    },
                 )
             
         context.user_data.pop("active_process", None)

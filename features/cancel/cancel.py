@@ -209,7 +209,7 @@ async def cancel_link_download(update, context, download_id: str, user_id: int):
             event_type="DOWNLOAD_CANCELED",
             function_name="cancel_link_download",
             task_id=context.user_data.get("task_id"),
-            details={"duration_seconds": duration, "canceled": True},
+            details={"time_taken": duration, "canceled": True},
             action_status={"status": "canceled", "latency": f"{duration}s"}
         )
         logger.info(f"[CANCEL] DOWNLOAD_CANCELED logged | task_id={context.user_data.get('task_id')} | duration={duration}s")
