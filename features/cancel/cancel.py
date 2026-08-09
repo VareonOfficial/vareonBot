@@ -31,6 +31,21 @@ async def cancel_process(update: Update, context: CallbackContext):
 
     logger.info(f"[CANCEL] User {user_id} initiated cancellation.")
     if clear_conv_handlers(context):
+        process_name = context.user_data.pop("active_process_name", "unknown")
+        try:
+            vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=user_id,
+                event_type="PROCESS_CANCELED",
+                function_name="cancel_process",
+                task_id=None,
+                details={"process_name": process_name},
+                action_status={"status": "canceled"},
+            )
+        except Exception as e:
+            logger.error(f"[CANCEL] Failed to log PROCESS_CANCELED: {e}")
+
         await respond(
             update,
             "❌ Operation cancelled.\nAnything else I can do for you?"

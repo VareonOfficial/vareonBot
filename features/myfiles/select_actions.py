@@ -19,6 +19,7 @@ from main.config import (RENAME, NEW_FOLDER, IST, logger, USERS_PATH)
 from main.config import VAREON_DB
 from features.myfiles.browse import refresh_folder_menu, ITEMS_PER_PAGE
 import httpx
+from vareon_analytics.vr_log import log_to_db, generate_task_id
 
 # Configuration (Docker-compose.yml, Docker "Container name:5000" for external connection)
 API_BASE_URL = "http://link-service:5000"
@@ -73,9 +74,10 @@ async def delete(update, context, vareon_id):
         await query.edit_message_text("❌ Unsafe or unauthorized deletion attempt blocked.")
         return
 
+    user_id = query.from_user.id
+    user_data = sessions.get(user_id, {})
+
     try:
-        user_id = query.from_user.id
-        user_data = sessions.get(user_id, {})
         base_dir = f"{USERS_PATH}/{user_data.get('vareon_id')}"
         trash_dir = os.path.join(base_dir, ".trash")
         os.makedirs(trash_dir, exist_ok=True)
@@ -84,10 +86,37 @@ async def delete(update, context, vareon_id):
             await query.edit_message_text("❌ Path does not exist.")
             return
 
-        move_to_trash_with_uuid(path, trash_dir, vareon_id, user_id)
+        item_name = os.path.basename(path)
+        item_type = "folder" if os.path.isdir(path) else "file"
+
+        trash_uuid = move_to_trash_with_uuid(path, trash_dir, vareon_id, user_id)
+
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="DELETE",
+            function_name="delete",
+            task_id=None,
+            details={
+                "type": item_type,
+                "name": item_name,
+                "path": path,
+                "trash_uuid": trash_uuid,
+            },
+            action_status={"status": "success"},
+        )
 
     except Exception as e:
         await query.edit_message_text(f"❌ Error moving to trash: {str(e)}")
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="PROCESS_FAILED",
+            function_name="delete",
+            task_id=None,
+            details={"process_name": "delete", "error": str(e)},
+            action_status={"status": "error"},
+        )
         return
 
     context.user_data.pop("confirm_delete_path", None)
@@ -115,6 +144,7 @@ async def multi_delete(update, context, vareon_id):
 
     moved_count = 0
     errors = []
+    deleted_items = []
 
     for uid in selected_uids:
         path = context.user_data.get("path_map", {}).get(uid)
@@ -125,7 +155,17 @@ async def multi_delete(update, context, vareon_id):
             errors.append(f"• {os.path.basename(path)}: unauthorized")
             continue
         try:
-            move_to_trash_with_uuid(path, trash_dir, vareon_id, user_id)
+            item_name = os.path.basename(path)
+            item_type = "folder" if os.path.isdir(path) else "file"
+            trash_uuid = move_to_trash_with_uuid(path, trash_dir, vareon_id, user_id)
+
+            deleted_items.append({
+                "type": item_type,
+                "name": item_name,
+                "path": path,
+                "trash_uuid": trash_uuid,
+            })
+
             context.user_data["path_map"].pop(uid, None)
             moved_count += 1
         except Exception as e:
@@ -139,6 +179,23 @@ async def multi_delete(update, context, vareon_id):
     if moved_count != len(selected_uids) and errors:
         error_text = "\n".join(errors)
         logger.error(f"Trash operation incomplete. Errors:\n{error_text}")
+
+    task_id = generate_task_id()
+    log_to_db(
+        vareon_id=vareon_id,
+        tg_user_id=user_id,
+        event_type="MULTI_DELETE",
+        function_name="multi_delete",
+        task_id=task_id,
+        details={
+            "items_selected": len(selected_uids),
+            "items_deleted": moved_count,
+            "items": deleted_items,
+            "errors": errors if errors else None,
+        },
+        action_status={"status": "success" if moved_count == len(selected_uids) else "partial"},
+    )
+
     context.user_data["last_action"] = "refresh"
     await refresh_folder_menu(update, context)
     
@@ -202,15 +259,18 @@ async def start_rename(update: Update, context: CallbackContext) -> int:
 
     context.user_data["rename_uid"] = uid
     context.user_data["is_folder"] = action == "rename_folder"
+    context.user_data["active_process_name"] = "rename_folder" if action == "rename_folder" else "rename_file"
     item_type = "folder" if action == "rename_folder" else "file"
     escaped_name = os.path.basename(path)
     await query.edit_message_text(
         f"📄 Current {item_type}: `{escaped_name}`\n\n"
-        f"✏️ Enter the new name {'(without extension)' if item_type == 'folder' else '(e.g., `newfile.mp4`)'}:",
+        f"✏️ Enter the new name {'(without extension)' if item_type == 'folder' else '(e.g., `newfile.mp4`)'}:\n"
+        f"💡 Send /cancel to abort.",
         parse_mode="Markdown"
     )
     logger.info("start_rename returning state RENAME=%s", RENAME)
     return RENAME
+
 
 async def handle_rename_input(update: Update, context: CallbackContext) -> int:
     logger.info("handle_rename_input triggered | text='%s' | user=%s", update.message.text, update.message.from_user.id)
@@ -247,8 +307,12 @@ async def handle_rename_input(update: Update, context: CallbackContext) -> int:
     new_path = os.path.join(dir_path, new_name)
 
     if os.path.exists(new_path):
+        # not a failure — just re-ask, no log (same as duplicate-name case in new_folder)
         await update.message.reply_text("⚠️ A file or folder with that name already exists. Try a different name.")
         return RENAME
+
+    session_data = sessions.get(user_id, {})
+    vareon_id = session_data.get("vareon_id", "unknown")
 
     try:
         os.rename(old_path, new_path)
@@ -256,14 +320,42 @@ async def handle_rename_input(update: Update, context: CallbackContext) -> int:
         item_type = "folder" if is_folder else "file"
         await update.message.reply_text(f"✅ {item_type.capitalize()} renamed successfully to `{new_name}`", parse_mode="Markdown")
 
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="RENAME",
+            function_name="handle_rename_input",
+            task_id=None,
+            details={
+                "type": "folder" if is_folder else "file",
+                "old_name": old_filename,
+                "new_name": new_name,
+                "old_path": old_path,
+                "new_path": new_path,
+            },
+            action_status={"status": "success"},
+        )
+
         from features.myfiles.myfiles import myfiles
         await myfiles(update, context)
 
     except Exception as e:
         await update.message.reply_text(f"❌ Failed to rename: {str(e)}")
-
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="PROCESS_FAILED",
+            function_name="handle_rename_input",
+            task_id=None,
+            details={
+                "process_name": "rename",
+                "type": "folder" if is_folder else "file",
+                "error": str(e),
+            },
+            action_status={"status": "error"},
+        )
+    context.user_data.pop("active_process_name", None)
     return ConversationHandler.END
-
 
 async def get_link(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -363,7 +455,7 @@ async def cancel_generated_link(update: Update, context: CallbackContext):
 async def start_new_folder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     user_id = (update.effective_user.id if update.effective_user else "unknown")
     if user_id not in sessions:
         await query.message.reply_text("❌ Please login first using /login.")
@@ -372,7 +464,7 @@ async def start_new_folder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.delete_message(query.message.chat_id, query.message.message_id)
     except Exception:
-        pass  # Ignore errors if message is already deleted
+        pass
 
     path_stack = context.user_data.get('path_stack', [])
     if not path_stack:
@@ -380,7 +472,8 @@ async def start_new_folder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     context.user_data['new_folder_path'] = path_stack[-1]
-    await query.message.reply_text("📂 Please enter the name of the new folder:")
+    context.user_data['active_process_name'] = "new_folder"
+    await query.message.reply_text("📂 Please enter the name of the new folder:\n\n💡 Send /cancel to abort.")
     logger.info("start_new_folder returning state NEW_FOLDER=%s", NEW_FOLDER)
     return NEW_FOLDER
 
@@ -420,7 +513,7 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
 
     try:
 
-        # check if folder exists
+        # check if folder exists — not a failure, just re-ask, no log
         if os.path.exists(new_folder_path):
 
             creation_time = os.path.getctime(new_folder_path)
@@ -447,6 +540,17 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
             f"✅ Folder '{folder_name}' created successfully."
         )
 
+        # ── Log success ──────────────────────────────────────────────────────
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="NEW_FOLDER",
+            function_name="handle_new_folder_input",
+            task_id=None,
+            details={"name": folder_name, "path": new_folder_path},
+            action_status={"status": "success"},
+        )
+
         # ensure path_stack is valid
         path_stack = context.user_data.get("path_stack", [])
 
@@ -457,16 +561,34 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
 
         await refresh_folder_menu(update, context, edit_text=False)
 
-    except PermissionError:
+    except PermissionError as e:
 
         await update.message.reply_text(
             f"❌ Permission denied: Cannot create folder '{folder_name}'."
+        )
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="PROCESS_FAILED",
+            function_name="handle_new_folder_input",
+            task_id=None,
+            details={"process_name": "new_folder", "error": str(e)},
+            action_status={"status": "error"},
         )
 
     except OSError as e:
 
         await update.message.reply_text(
             f"❌ OS Error: {str(e)}"
+        )
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="PROCESS_FAILED",
+            function_name="handle_new_folder_input",
+            task_id=None,
+            details={"process_name": "new_folder", "error": str(e)},
+            action_status={"status": "error"},
         )
 
     except Exception as e:
@@ -476,7 +598,17 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text(
             f"❌ Unexpected error: {str(e)}"
         )
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="PROCESS_FAILED",
+            function_name="handle_new_folder_input",
+            task_id=None,
+            details={"process_name": "new_folder", "error": str(e)},
+            action_status={"status": "error"},
+        )
 
+    context.user_data.pop("active_process_name", None)   # done either way
     return ConversationHandler.END
 
 async def select_all(update, context):

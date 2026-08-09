@@ -39,7 +39,7 @@ from features.myfiles.browse import page_next, page_prev
 from features.myfiles.select_actions import (start_rename, handle_rename_input, cancel_generated_link, 
 handle_new_folder_input, start_new_folder)
 from features.myfiles.move import (start_move_folder, navigate_move_folder, navigate_move_back, move_here, move_page_prev,
-move_page_next)
+move_page_next, move_cancel_back)
 from features.myfiles.utils import handle_reply_name
 from features.files.files import handle_file, files
 from features.cookies.set_cookies import cookies, cookies_menu, save_cookie
@@ -543,45 +543,6 @@ def setup_handlers(application: Application) -> None:
     # 1.  CANCEL
     # ─────────────────────────────────────────────────────────────────────────────
     application.add_handler(CallbackQueryHandler(cancel_process, pattern=r"^cancel_process($|\|)"))
-    application.add_handler(CommandHandler("cancel", cancel_process))
-
-    # ─────────────────────────────────────────────────────────────────────────────
-    # 2.  SEARCH  (/search → text input → results → episode range, etc.)
-    # ─────────────────────────────────────────────────────────────────────────────
-    # search_handler = ConversationHandler(
-    #     entry_points=[
-    #         CommandHandler("search", search.start_search),
-    #     ],
-    #     states={
-    #         SEARCH_CHOICE: [
-    #             MessageHandler(filters.TEXT & ~filters.COMMAND, search.choose_result),
-    #         ],
-    #         SEARCH_OPTION: [
-    #             CallbackQueryHandler(search.select_option,          pattern=r"^opt_"),
-    #             CallbackQueryHandler(handle_toonworld4all_quality,  pattern=r"^tw_opt_\d+$"),
-    #             MessageHandler(filters.TEXT & ~filters.COMMAND, choose_bollyflix_result),
-    #         ],
-    #         TOONWORLD_QUALITY: [
-    #             CallbackQueryHandler(handle_toonworld_quality_choice, pattern=r"^tw_quality_\d+$"),
-    #         ],
-    #         SEARCH_RANGE: [
-    #             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_episode_range),
-    #         ],
-    #         ANIMEFLIX_EPISODE_RANGE: [
-    #             MessageHandler(filters.TEXT & ~filters.COMMAND, animeflix_episode_range),
-    #         ],
-    #         GAMELEECH_CHOICE: [
-    #             CallbackQueryHandler(handle_gamesleech_zip, pattern=r"^GAMELEECH_ZIP$"),
-    #         ],
-    #         GAMELEECH_PARTS: [
-    #             # ZIP button must remain reachable even while waiting for part text input
-    #             CallbackQueryHandler(handle_gamesleech_zip,   pattern=r"^GAMELEECH_ZIP$"),
-    #             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gamesleech_parts),
-    #         ],
-    #     },
-    #     fallbacks=[],
-    #     allow_reentry=True,)
-    # application.add_handler(search_handler)
 
     # ─────────────────────────────────────────────────────────────────────────────
     # 3.  MYFILES  — file manager (browse, rename, move, new folder)
@@ -622,15 +583,18 @@ def setup_handlers(application: Application) -> None:
                 CallbackQueryHandler(navigate_move_folder, pattern=r"^navigate_move\|"),
                 CallbackQueryHandler(navigate_move_back,   pattern="^navigate_move_back$"),
                 CallbackQueryHandler(move_here,            pattern="^move_here$"),
+                CallbackQueryHandler(move_cancel_back, pattern="^move_cancel_back$"),
             ],
         },
         fallbacks=[
             CommandHandler("start",  start),
             CommandHandler("logout", logout),
             CommandHandler("help",   help_command),
+            CommandHandler("cancel", cancel_process),
         ],
         allow_reentry=True,)
     application.add_handler(move_conv)
+        
     # 3d. /myfiles command
     application.add_handler(CommandHandler("myfiles", myfiles))
     # 3e. Core file-manager button actions
@@ -754,6 +718,9 @@ def setup_handlers(application: Application) -> None:
     # ─────────────────────────────────────────────────────────────────────────────
     # 13. ADMIN PANEL
     # ─────────────────────────────────────────────────────────────────────────────
+    # always below all conv or message handlers
+    application.add_handler(CommandHandler("cancel", cancel_process))
+        
     application.add_handler(CommandHandler("getid",           getid_command))
     application.add_handler(CommandHandler("stats",           stats_command))
     application.add_handler(CommandHandler("broadcast",       broadcast_command))

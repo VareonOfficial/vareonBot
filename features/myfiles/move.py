@@ -11,6 +11,7 @@ from main.state import sessions
 from main.config import MOVE_FOLDER, logger, USERS_PATH
 from main.state import sessions
 from features.myfiles.browse import refresh_folder_menu
+from vareon_analytics.vr_log import log_to_db, generate_task_id
 
 MOVE_ITEMS_PER_PAGE = 30
 
@@ -29,6 +30,7 @@ async def start_move_folder(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.edit_message_text("❌ Folder not found.")
         return ConversationHandler.END
 
+    context.user_data["task_id"] = generate_task_id()
     context.user_data["move_folder_uid"] = uid
     context.user_data["move_folder_path"] = path
     context.user_data["current_mode"] = "move_folder"
@@ -133,7 +135,8 @@ async def show_move_folder_menu(update: Update, context: ContextTypes.DEFAULT_TY
     if nav_buttons:
         keyboard.append(nav_buttons)
 
-    keyboard.append([InlineKeyboardButton("🚚 Move Here", callback_data="move_here")])
+    keyboard.append([InlineKeyboardButton("🚚 Move Here", callback_data="move_here", style="primary")])
+    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="move_cancel_back", style="danger")])
 
     mode = context.user_data.get("current_mode")
     if mode == "multi_move":
@@ -247,6 +250,20 @@ async def move_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error("Move failed for %s: %s", source_path, str(e))
                 errors.append(f"Failed to move '{os.path.basename(source_path)}': {str(e)}")
 
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=user_id,
+            event_type="MULTI_MOVE",
+            function_name="move_here",
+            task_id=context.user_data.get("task_id"),
+            details={
+                "items_selected": len(selected_uids),
+                "items_moved": moved_count,
+                "new_location": target_path,
+                "errors": errors if errors else None,
+            },
+            action_status={"status": "success" if moved_count == len(selected_uids) else "partial"},
+        )
         context.user_data.pop("multi_move_uids", None)
         context.user_data.pop("multi_move_count", None)
         context.user_data.pop("current_mode", None)
@@ -333,7 +350,20 @@ async def move_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["path_stack"] = new_stack
             context.user_data["current_page"] = 1
             context.user_data["last_action"] = "refresh"
-
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=user_id,
+                event_type="MOVE",
+                function_name="move_here",
+                task_id=context.user_data.get("task_id"),
+                details={
+                    "type": item_type,
+                    "name": os.path.basename(source_path),
+                    "old_location": source_path,
+                    "new_location": new_path,
+                },
+                action_status={"status": "success"},
+            )
             await query.edit_message_text(
                 f"✅ {item_type.capitalize()} moved successfully to `{os.path.basename(target_path)}`",
                 parse_mode="Markdown"
@@ -342,6 +372,15 @@ async def move_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await refresh_folder_menu(update, context, edit_text=False)
         except Exception as e:
             await query.edit_message_text(f"❌ Failed to move {item_type}: {str(e)}")
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=user_id,
+                event_type="PROCESS_FAILED",
+                function_name="move_here",
+                task_id=context.user_data.get("task_id"),
+                details={"process_name": "move", "error": str(e)},
+                action_status={"status": "error"},
+            )
 
     else:
         await query.edit_message_text("❌ Invalid move mode.")
@@ -367,3 +406,23 @@ async def multi_move(update, context, vareon_id):
         parse_mode="Markdown"
     )
     await show_move_folder_menu(update, context)
+    
+async def move_cancel_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    # clean up everything move-related, regardless of single/multi mode
+    context.user_data.pop("move_file_uid", None)
+    context.user_data.pop("move_file_path", None)
+    context.user_data.pop("move_folder_uid", None)
+    context.user_data.pop("move_folder_path", None)
+    context.user_data.pop("move_path_stack", None)
+    context.user_data.pop("move_current_page", None)
+    context.user_data.pop("current_mode", None)
+    context.user_data.pop("multi_move_uids", None)
+    context.user_data.pop("multi_move_count", None)
+    context.user_data.pop("multi_select_mode", None)
+    context.user_data.pop("selected_uids", None)
+
+    await refresh_folder_menu(update, context, edit_text=True)
+    return ConversationHandler.END
