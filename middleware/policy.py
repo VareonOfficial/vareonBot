@@ -49,7 +49,7 @@ async def policy_gate(update: Update, context: CallbackContext):
         "📋 <b>Before you continue</b>\n\n"
         "We save some usage data to personalise your experience and improve the bot. "
         "You can review or manage your saved data anytime with /mydata.\n\n"
-        f"[Read the full policy]({POLICY_URL})\n"
+        f'<a href="{POLICY_URL}">Read the full policy</a>\n'
         f"• Policy version: <b>{CURRENT_POLICY_VERSION}</b>\n\n"
         "Please accept to keep using the bot."
     )
