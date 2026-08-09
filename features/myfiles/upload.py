@@ -166,6 +166,7 @@ async def _do_upload(
     eta = "N/A"
     last_update = 0
     upload_started = False
+    cancelled = False
 
     try:
         while True:
@@ -242,6 +243,7 @@ async def _do_upload(
 
     except asyncio.CancelledError:
         logger.info("Upload task cancelled")
+        cancelled = True
     finally:
         if process.returncode is None:
             try:
@@ -262,7 +264,7 @@ async def _do_upload(
         except Exception as e:
             logger.error(f"Failed to restore original filename: {e}")
 
-        if returncode == 0 and upload_started:
+        if returncode == 0 and upload_started and not cancelled:
             log_to_db(
                 vareon_id=vareon_id,
                 tg_user_id=user_id,
@@ -295,23 +297,37 @@ async def _do_upload(
             except Exception:
                 pass
             # ── Log the failure ──────────────────────────────────────────────
-            failure_reason = (
-                "tdl did not start (check tdl installation)"
-                if not upload_started else
-                f"tdl exited with code {returncode}"
-            )
-            log_to_db(
-                vareon_id=vareon_id,
-                tg_user_id=user_id,
-                event_type="PROCESS_FAILED",
-                function_name="_do_upload",
-                task_id=task_id,
-                details={
-                    "process_name": "upload",
-                    "error": failure_reason,
-                },
-                action_status={"status": "error"},
-            )
+            if cancelled:
+                log_to_db(
+                    vareon_id=vareon_id,
+                    tg_user_id=user_id,
+                    event_type="PROCESS_CANCELED",
+                    function_name="_do_upload",
+                    task_id=task_id,
+                    details={
+                        "process_name": "upload",
+                        "error": "Upload was cancelled by the user",
+                    },
+                    action_status={"status": "canceled"},
+                )
+            else:
+                failure_reason = (
+                    "Upload did not start (internal bot error)"
+                    if not upload_started
+                    else f"Internal bot code error [tdl exited with code {returncode}]"
+                )
+                log_to_db(
+                    vareon_id=vareon_id,
+                    tg_user_id=user_id,
+                    event_type="PROCESS_FAILED",
+                    function_name="_do_upload",
+                    task_id=task_id,
+                    details={
+                        "process_name": "upload",
+                        "error": failure_reason,
+                    },
+                    action_status={"status": "error"},
+                )
             error_msg = (
                 "❌ Upload did not start (check tdl installation)"
                 if not upload_started else "❌ Upload failed or was cancelled"

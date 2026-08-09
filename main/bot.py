@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from collections import defaultdict
 from telegram import Update
 from telegram.ext import (Application, CommandHandler, MessageHandler, ConversationHandler, CallbackQueryHandler, 
-                          CallbackContext, ContextTypes, filters,
+                          CallbackContext, ContextTypes, filters, TypeHandler
 )
 from pyrogram import Client as PyroClient
 from telethon import TelegramClient as TelethonClient
@@ -52,6 +52,8 @@ from main.dir_update import (navigate_folder, navigate_back, show_download_folde
 from infra.broadcast import broadcast_settings, broadcast_command, delete_broadcast, handle_broadcast_message, cancel_broadcast
 from infra.settings import settings, handle_toggle_receive_updates, handle_toggle_default_dl
 from databases.databases_config import init_db
+from middleware.agreements import init_agreements_table, load_agreements_cache
+from middleware.policy import policy_gate, accept_policy_callback
 
 user_locks = defaultdict(asyncio.Lock)
 file_session_lock = asyncio.Lock()
@@ -520,8 +522,10 @@ def setup_handlers(application: Application) -> None:
     # ─────────────────────────────────────────────────────────────────────────────
     restore_sessions(application)
     
-    # group -99: fires first on every callback update — never remove or reorder
-    application.add_handler(CallbackQueryHandler(debug_all), group=-99)
+    application.add_handler(TypeHandler(Update, policy_gate), group=-10)
+    application.add_handler(CallbackQueryHandler(accept_policy_callback, pattern="^accept_policy$"))
+    # group -9: fires first on every callback update — never remove or reorder
+    application.add_handler(CallbackQueryHandler(debug_all), group=-9)
     application.add_error_handler(error_handler)
 
     # ─────────────────────────────────────────────────────────────────────────────
@@ -777,6 +781,8 @@ async def run_all():
 
     logger.info("Creating and Initialising databases...")
     init_db()
+    init_agreements_table()
+    load_agreements_cache()
     setup_handlers(application)
 
     await application.initialize()
