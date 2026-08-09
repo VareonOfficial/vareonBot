@@ -383,6 +383,8 @@ async def get_link(update: Update, context: CallbackContext):
         "link_sharing": "off"
     }
 
+    task_id = generate_task_id()
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -390,17 +392,48 @@ async def get_link(update: Update, context: CallbackContext):
                 json=payload,
                 timeout=10.0
             )
-        
+
         if response.status_code != 200:
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=telegram_user_id,
+                event_type="PROCESS_FAILED",
+                function_name="get_link",
+                task_id=task_id,
+                details={
+                    "process_name": "get_link",
+                    "error": f"API returned status {response.status_code}",
+                },
+                action_status={"status": "error"},
+            )
             await query.edit_message_text("❌ API failed to generate link.")
             return
 
         token = response.json().get("token")
         short_id = token[:12]
-        
-        context.user_data[f"link_{short_id}"] = token
+
+        context.user_data[f"link_{short_id}"] = {
+            "token": token,
+            "task_id": task_id,
+        }
 
         link = f"https://cdn-southeast-asia.vareon.top/d/{token}"
+
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=telegram_user_id,
+            event_type="GET_LINK",
+            function_name="get_link",
+            task_id=task_id,
+            details={
+                "url": link,
+                "name": payload["filename"],
+                "path": path,
+                "size": str(os.path.getsize(path)),
+            },
+            action_status={"status": "success"},
+        )
+
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton("❌ Cancel Link", callback_data=f"cancel_generated_link:{short_id}")
         ]])
@@ -417,22 +450,41 @@ async def get_link(update: Update, context: CallbackContext):
 
     except Exception as e:
         logger.error(f"Bot Error (get_link): {e}")
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=telegram_user_id,
+            event_type="PROCESS_FAILED",
+            function_name="get_link",
+            task_id=task_id,
+            details={
+                "process_name": "get_link",
+                "error": str(e),
+            },
+            action_status={"status": "error"},
+        )
         await query.edit_message_text("❌ Server not reachable.")
+
 
 async def cancel_generated_link(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
+
+    telegram_user_id = update.effective_user.id
+    vareon_id = sessions.get(telegram_user_id, {}).get("vareon_id")
 
     try:
         short_id = query.data.split(":", 1)[1]
     except IndexError:
         return
 
-    token = context.user_data.get(f"link_{short_id}")
+    link_data = context.user_data.get(f"link_{short_id}")
 
-    if not token:
+    if not link_data:
         await query.edit_message_text("⚠️ Link already expired or invalid.")
         return
+
+    token = link_data["token"]
+    task_id = link_data["task_id"]
 
     try:
         async with httpx.AsyncClient() as client:
@@ -444,12 +496,47 @@ async def cancel_generated_link(update: Update, context: CallbackContext):
 
         if resp.status_code == 200:
             context.user_data.pop(f"link_{short_id}", None)
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=telegram_user_id,
+                event_type="LINK_CANCELLED",
+                function_name="cancel_generated_link",
+                task_id=task_id,
+                details={
+                    "short_id": short_id,
+                },
+                action_status={"status": "success"},
+            )
             await query.edit_message_text("✅ Link cancelled successfully.")
         else:
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=telegram_user_id,
+                event_type="PROCESS_FAILED",
+                function_name="cancel_generated_link",
+                task_id=task_id,
+                details={
+                    "process_name": "cancel_link",
+                    "error": f"API returned status {resp.status_code}",
+                },
+                action_status={"status": "error"},
+            )
             await query.edit_message_text("❌ Failed to revoke link on server.")
 
     except Exception as e:
         logger.error(f"Bot Error (cancel_link): {e}")
+        log_to_db(
+            vareon_id=vareon_id,
+            tg_user_id=telegram_user_id,
+            event_type="PROCESS_FAILED",
+            function_name="cancel_generated_link",
+            task_id=task_id,
+            details={
+                "process_name": "cancel_link",
+                "error": str(e),
+            },
+            action_status={"status": "error"},
+        )
         await query.edit_message_text("❌ Server not reachable.")
         
 async def start_new_folder(update: Update, context: ContextTypes.DEFAULT_TYPE):

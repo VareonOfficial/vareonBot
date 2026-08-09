@@ -14,17 +14,6 @@ from main.config import pg_conn_auth, get_user_details_from_db, SUPPORT_GROUP_ID
 
 import config, state
 
-# from search_config import search
-# from search_config.constants import (
-#     GAMELEECH_PARTS, GAMELEECH_CHOICE, SEARCH_CHOICE, SEARCH_OPTION,
-#     SEARCH_RANGE, ANIMEFLIX_EPISODE_RANGE, TOONWORLD_QUALITY,
-# )
-# from search_config.toonworld4all import handle_toonworld4all_quality, handle_toonworld_quality_choice
-# from search_config.animeflix import animeflix_episode_range
-# from search_config.moviesmod import handle_episode_range
-# from search_config.bollyflix import choose_bollyflix_result
-# from search_config.gamesleech import handle_gamesleech_zip, handle_gamesleech_parts
-
 from features.music.music import music, music_search_pick_callback
 from report.report import report_command, report_buttons
 from report.report_history import view_report_details, report_history, delete_report_handler
@@ -352,10 +341,11 @@ async def start(update: Update, context: CallbackContext) -> None:
                 f"Welcome back, **{display_name}**\n\n"
                 "You can now use:\n"
                 "• /link — upload from link\n"
+                "• /files — upload files to your storage\n"
                 "• /music — upload music from Spotify and YouTube\n"
-                "• /search — search for any movie or show\n"
-                "• /myfiles — your files\n"
+                "• /myfiles — manage your files\n"
                 "• /storage — storage info\n"
+                "• /help — for help\n"
                 "• /logout — sign out",
                 parse_mode="Markdown"
             )
@@ -364,14 +354,14 @@ async def start(update: Update, context: CallbackContext) -> None:
         else:
             await update.message.reply_text("❌ Invalid or expired link.\nUse /login to get a new one.")
             return
-
     await update.message.reply_text(
-        f"👋 Hi **{first_name}**! Welcome to Vareon bot!\n\n"
-        f"Log in with your Vareon account to use the bot:\n\n"
-        f"➜ [Login / Create Account]({LOGIN_LINK})\n\n"
-        f"You'll be brought back here automatically after login.\n\n"
-        f"Your Telegram User ID: {update.effective_user.id}",
-        parse_mode="Markdown",
+        f"👋 Hi <b>{first_name}</b>! Welcome to Vareon Bot!\n\n"
+        f"Log in with your Vareon account to get started:\n\n"
+        f"➜ <a href=\"{LOGIN_LINK}\">Login / Create Account</a>\n\n"
+        f"• After logging in, you'll <b>automatically</b> be brought back here.\n\n"
+        f"• <b>Need help?</b> Watch our <a href=\"https://t.me/VareonNews/4\">Step-by-Step Video Walkthrough</a>.\n\n"
+        f"Your Telegram User ID: <code>{update.effective_user.id}</code>",
+        parse_mode="HTML",
         disable_web_page_preview=True
     )
 
@@ -460,11 +450,6 @@ async def help_command(update: Update, context: CallbackContext) -> None:
 ━━━━━━━━━━━━━━━━
 <code>/myfiles</code> — Browse your folders and files. Select multiple items to move, compress, or delete them. Generate high-speed download links for any file or folder.
 <code>/storage</code> — See how much storage you've used and a breakdown of what's taking up space.
-
-━━━━━━━━━━━━━━━━
-🔍 <b>Search</b>
-━━━━━━━━━━━━━━━━
-<code>/search</code> — Search for movies, apps, software, and games instantly — no need to visit external sites.
 
 ━━━━━━━━━━━━━━━━
 🛠 <b>Support &amp; Control</b>

@@ -15,7 +15,7 @@ from telegram import InlineKeyboardMarkup
 from main.config import logger, STORAGE_PATH, PRIVATE_GROUP_ID, VAREON_DB
 from main.utils import format_size
 from features.files.tdl_queue import queue_tdl_task
-
+from vareon_analytics.vr_log import log_to_db, generate_task_id
 
 def _init_pending_uploads_table():
     """Ensure pending_uploads table exists."""
@@ -50,6 +50,7 @@ async def run_tdl_upload(path, file_name, context, user_id, progress_msg=None, v
 
     # ── File size ──────────────────────────────────────────────────────────────
     try:
+        total_size_bytes = os.path.getsize(file_path)
         total_size = format_size(os.path.getsize(file_path))
     except Exception as e:
         logger.warning(f"Could not get file size: {e}")
@@ -86,6 +87,20 @@ async def run_tdl_upload(path, file_name, context, user_id, progress_msg=None, v
         await progress_msg.edit_text("❌ Failed to prepare upload. Please try again.")
         return
 
+    task_id = generate_task_id()
+    log_to_db(
+        vareon_id=vareon_id,
+        tg_user_id=user_id,
+        event_type="UPLOAD_STARTED",
+        function_name="run_tdl_upload",
+        task_id=task_id,
+        details={
+            "name": file_name,
+            "path": original_file_path,
+            "size" : total_size_bytes,
+        },
+        action_status={"status": "in_progress"},
+    )
     # ── Hand off to the shared queue ──────────────────────────────────────────
     async def _upload_task(cancel_btn: InlineKeyboardMarkup):
         await _do_upload(
@@ -96,11 +111,13 @@ async def run_tdl_upload(path, file_name, context, user_id, progress_msg=None, v
             temp_file_name=temp_file_name,
             temp_file_path=temp_file_path,
             total_size=total_size,
+            total_size_bytes=total_size_bytes,
             context=context,
             user_id=user_id,
             vareon_id=vareon_id,
             upload_uuid=upload_uuid,
             cancel_btn=cancel_btn,
+            task_id=task_id,
         )
 
     await queue_tdl_task(
@@ -117,7 +134,7 @@ async def run_tdl_upload(path, file_name, context, user_id, progress_msg=None, v
 async def _do_upload(
     progress_msg, path, file_name,
     original_file_path, temp_file_name, temp_file_path,
-    total_size, context, user_id, vareon_id, upload_uuid, cancel_btn,
+    total_size, total_size_bytes, context, user_id, vareon_id, upload_uuid, cancel_btn, task_id
 ):
     GROUP_ID = str(PRIVATE_GROUP_ID).replace("-100", "")
     cmd = [
@@ -246,6 +263,19 @@ async def _do_upload(
             logger.error(f"Failed to restore original filename: {e}")
 
         if returncode == 0 and upload_started:
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=user_id,
+                event_type="UPLOAD_COMPLETED",
+                function_name="_do_upload",
+                task_id=task_id,
+                details={
+                    "name": file_name,
+                    "path": original_file_path,
+                    "size" : total_size_bytes,
+                },
+                action_status={"status": "success"},
+            )
             await _forward_uploaded_file(
                 progress_msg=progress_msg,
                 context=context,
@@ -264,7 +294,24 @@ async def _do_upload(
                 conn.close()
             except Exception:
                 pass
-
+            # ── Log the failure ──────────────────────────────────────────────
+            failure_reason = (
+                "tdl did not start (check tdl installation)"
+                if not upload_started else
+                f"tdl exited with code {returncode}"
+            )
+            log_to_db(
+                vareon_id=vareon_id,
+                tg_user_id=user_id,
+                event_type="PROCESS_FAILED",
+                function_name="_do_upload",
+                task_id=task_id,
+                details={
+                    "process_name": "upload",
+                    "error": failure_reason,
+                },
+                action_status={"status": "error"},
+            )
             error_msg = (
                 "❌ Upload did not start (check tdl installation)"
                 if not upload_started else "❌ Upload failed or was cancelled"
