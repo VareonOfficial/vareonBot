@@ -759,14 +759,13 @@ async def run_all():
     # ── Telethon user client ─────────────────────────────────────────
     logger.info("Starting Telethon user client...")
     await state.telethon_user_client.start()
+
     try:
         await state.telethon_user_client.get_entity(PRIVATE_GROUP_LINK)
         logger.info("✅ Private group peer cached via Telethon")
     except Exception:
         try:
-            await state.telethon_user_client(
-                JoinChannelRequest(PRIVATE_GROUP_LINK)
-            )
+            await state.telethon_user_client(JoinChannelRequest(PRIVATE_GROUP_LINK))
             logger.info("✅ Private group joined via Telethon")
         except Exception as e2:
             logger.error(f"Failed to cache private group peer: {e2}")

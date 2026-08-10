@@ -12,7 +12,8 @@ import uuid
 import sqlite3
 import asyncio
 from telegram import InlineKeyboardMarkup
-from main.config import logger, STORAGE_PATH, PRIVATE_GROUP_ID, VAREON_DB
+from telethon.tl.functions.channels import JoinChannelRequest
+from main.config import logger, STORAGE_PATH, PRIVATE_GROUP_ID, VAREON_DB, PRIVATE_GROUP_LINK
 from main.utils import format_size
 from features.files.tdl_queue import queue_tdl_task
 from vareon_analytics.vr_log import log_to_db, generate_task_id
@@ -33,6 +34,10 @@ def _init_pending_uploads_table():
     conn.close()
 
 _init_pending_uploads_table()
+
+# Serializes Telethon connect → search → disconnect so two uploads
+# finishing at the same time can't race on the same client instance.
+_telethon_lock = asyncio.Lock()
 
 
 async def run_tdl_upload(path, file_name, context, user_id, progress_msg=None, vareon_id=None):
@@ -355,6 +360,52 @@ async def _forward_uploaded_file(progress_msg, context, user_id, vareon_id, uplo
             logger.error("user_id is None in _forward_uploaded_file")
             return
 
+        # ── STEP 1: Physical Network Connection Check ──
+        try:
+            if not u_client.is_connected():
+                logger.info(f"[STAGE 1] Socket offline. Connecting Telethon... | uuid={upload_uuid}")
+                await u_client.connect()
+            else:
+                logger.info(f"[STAGE 1] Socket already connected (0ms) | uuid={upload_uuid}")
+        except Exception as e1:
+            logger.error(f"❌ CRITICAL [STAGE 1 FAILED]: Network connection error: {e1}", exc_info=True)
+            await progress_msg.edit_text("❌ Network Error, Please Report this issue as a Bug.")
+            return
+
+        # ── STEP 2: Session Authenticity Check ──
+        try:
+            # This confirms your session string/file is still accepted by Telegram
+            is_authed = await u_client.is_user_authorized()
+            if not is_authed:
+                logger.error(f"❌ CRITICAL [STAGE 2 FAILED]: Telethon session string/file is INVALID or REVOKED! | uuid={upload_uuid}")
+                await progress_msg.edit_text("❌ Authorization Error, Please Report this issue as a Bug.")
+                return
+            logger.info(f"[STAGE 2] Session authenticity verified | uuid={upload_uuid}")
+        except Exception as e2:
+            logger.error(f"❌ CRITICAL [STAGE 2 ERROR]: Failed while verifying session status: {e2}", exc_info=True)
+            await progress_msg.edit_text("❌ Authorization Error, Please Report this issue as a Bug.")
+            return
+
+        # ── STEP 3: Private Group Peer Check ──
+        try:
+            logger.info(f"[STAGE 3] Fetching group entity... | uuid={upload_uuid}")
+            await u_client.get_entity(PRIVATE_GROUP_LINK)
+            logger.info(f"✅ SUCCESS [STAGE 3]: Private group peer located and cached | uuid={upload_uuid}")
+        except Exception as e3_fetch:
+            logger.warning(f"⚠️ [STAGE 3 WARN]: Group not cached or inaccessible ({e3_fetch}). Attempting join... | uuid={upload_uuid}")
+            
+            # Fallback: Try joining if get_entity failed
+            try:
+                await u_client(JoinChannelRequest(PRIVATE_GROUP_LINK))
+                logger.info(f"✅ SUCCESS [STAGE 3 FALLBACK]: Private group successfully joined | uuid={upload_uuid}")
+            except Exception as e3_join:
+                logger.error(f"❌ CRITICAL [STAGE 3 FAILED]: Cannot access or join group. Banned or invalid link? Error: {e3_join}", exc_info=True)
+                await progress_msg.edit_text("❌ Access Error, Please Report this issue as a Bug.")
+                return
+
+        # ── ALL CHECKS PASSED: Proceed with your forwarding logic below ──
+        logger.info(f"🚀 All 3 Telethon pre-checks passed perfectly. Proceeding with file delivery... | uuid={upload_uuid}")
+       
         # Wait briefly for Telegram to register the message
         await asyncio.sleep(3)
 
