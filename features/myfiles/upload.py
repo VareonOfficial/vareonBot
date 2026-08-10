@@ -366,7 +366,7 @@ async def _forward_uploaded_file(progress_msg, context, user_id, vareon_id, uplo
                 logger.info(f"[STAGE 1] Socket offline. Connecting Telethon... | uuid={upload_uuid}")
                 await u_client.connect()
             else:
-                logger.info(f"[STAGE 1] Socket already connected (0ms) | uuid={upload_uuid}")
+                logger.info(f"[STAGE 1] Socket is already connected | uuid={upload_uuid}")
         except Exception as e1:
             logger.error(f"❌ CRITICAL [STAGE 1 FAILED]: Network connection error: {e1}", exc_info=True)
             await progress_msg.edit_text("❌ Network Error, Please Report this issue as a Bug.")
