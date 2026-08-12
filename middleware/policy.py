@@ -13,7 +13,8 @@ from middleware.agreements import _has_accepted, _record_agreement
 
 AGREEMENT_TYPE_POLICY = "policy"
 CURRENT_POLICY_VERSION = "1.0"
-POLICY_URL = "https://vareon.top/legal/terms"
+POLICY_URL = "https://www.vareon.top/legal/privacy"
+TERMS_URL = "https://www.vareon.top/legal/terms"
 ENABLE_POLICY_GATE = os.getenv("ENABLE_POLICY_GATE", "true").lower() == "true"
 ALLOWED_WITHOUT_POLICY = {"start", "login", "help", "logout"}
 
@@ -49,7 +50,7 @@ async def policy_gate(update: Update, context: CallbackContext):
         "📋 <b>Before you continue</b>\n\n"
         "We save some usage data to personalise your experience and improve the bot. "
         "You can review or manage your saved data anytime with /mydata.\n\n"
-        f'<a href="{POLICY_URL}">Read the full policy</a>\n'
+        f'<a href="{POLICY_URL}">🔒 Privacy Policy</a> | <a href="{TERMS_URL}">📄 Terms of Use</a>\n'
         f"• Policy version: <b>{CURRENT_POLICY_VERSION}</b>\n\n"
         "Please accept to keep using the bot."
     )
