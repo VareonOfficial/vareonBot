@@ -42,14 +42,15 @@ from chatbot.message import message_handler
 from main.state import sessions
 from main.utils import cache_file_id, getid_command, _common_menu_handler
 from main.config import (
-    VAREON_DB, logger, ADMIN_ID, PRIVATE_GROUP_LINK, RENAME, MOVE_FOLDER, NEW_FOLDER, 
+    VAREON_DB, logger, ADMIN_IDS, PRIVATE_GROUP_LINK, RENAME, MOVE_FOLDER, NEW_FOLDER, 
     BOT_TOKEN, USERS_PATH, TELETHON_SESSION_TXT,
 )
 from vareon_analytics.vr_log import log_wrapper
 from vareon_analytics.export_data import handle_export_data
 from main.dir_update import (navigate_folder, navigate_back, show_download_folder_menu, handle_download_here_callback,
                              handle_folder_page_navigation)
-from infra.broadcast import broadcast_settings, broadcast_command, delete_broadcast, handle_broadcast_message, cancel_broadcast
+from chatbot.broadcast.broadcast import broadcast_settings, broadcast_command, handle_broadcast_message, cancel_broadcast
+from chatbot.broadcast.helper import delete_broadcast
 from infra.settings import settings, handle_toggle_receive_updates, handle_toggle_default_dl
 from databases.databases_config import init_db
 from middleware.agreements import init_agreements_table, load_agreements_cache
@@ -468,6 +469,7 @@ async def help_command(update: Update, context: CallbackContext) -> None:
 # Account setup
 ################################
 
+@log_wrapper(event_type="COMMAND", function_name="accounts")
 async def accounts(update: Update, context: CallbackContext):
     user = update.message.from_user
     user_id = user.id
@@ -715,7 +717,7 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("broadcast",       broadcast_command))
     application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
 
-    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=ADMIN_ID),handle_broadcast_message,), group=-4)
+    application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=list(ADMIN_IDS)), handle_broadcast_message,), group=-4)
     application.add_handler(CallbackQueryHandler(_common_menu_handler, pattern="^_common_menu:"))
     application.add_handler(CallbackQueryHandler(close_stats,          pattern="close_stats"))
     application.add_handler(CallbackQueryHandler(cancel_broadcast,     pattern="^cancel_broadcast$"))

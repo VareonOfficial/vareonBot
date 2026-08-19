@@ -3,7 +3,7 @@ import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackContext, ApplicationHandlerStop
 
-from main.config import VAREON_DB, logger, ADMIN_ID
+from main.config import VAREON_DB, logger, ADMIN_IDS
 from main.state import sessions
 from middleware.agreements import _has_accepted, _record_agreement
 
@@ -26,7 +26,7 @@ async def policy_gate(update: Update, context: CallbackContext):
     if not user:
         return  # channel posts etc. — no user to gate
 
-    if user.id == ADMIN_ID:
+    if user.id in ADMIN_IDS:
         return  # admin bypass
 
     message = update.effective_message

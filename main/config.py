@@ -38,7 +38,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 SUPPORT_BOT_TOKEN = os.getenv("SUPPORT_BOT_TOKEN")
 
 # Admin
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+ADMIN_IDS = {int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()}
 
 # Paths
 BASE_PATH = Path(os.getenv("BASE_PATH", "/var/lib/vareon"))

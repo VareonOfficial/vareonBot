@@ -389,7 +389,7 @@ async def _forward_uploaded_file(progress_msg, context, user_id, vareon_id, uplo
         # ── STEP 3: Private Group Peer Check ──
         try:
             logger.info(f"[STAGE 3] Fetching group entity... | uuid={upload_uuid}")
-            await u_client.get_entity(PRIVATE_GROUP_LINK)
+            await u_client.get_entity(g_id)
             logger.info(f"✅ SUCCESS [STAGE 3]: Private group peer located and cached | uuid={upload_uuid}")
         except Exception as e3_fetch:
             logger.warning(f"⚠️ [STAGE 3 WARN]: Group not cached or inaccessible ({e3_fetch}). Attempting join... | uuid={upload_uuid}")
