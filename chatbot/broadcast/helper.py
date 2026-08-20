@@ -1,13 +1,10 @@
-import re, sqlite3, html
+import sqlite3, json
 from datetime import datetime, timezone
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import CallbackContext, ConversationHandler, ContextTypes
+from telegram import Update
+from telegram.ext import CallbackContext
 
 from main.config import ADMIN_IDS, VAREON_DB, logger
-from main.config import logger
-from main.state import broadcast_mode
-
 #####Broadcast########
 ######################
 def save_broadcast_settings(data):
@@ -63,24 +60,22 @@ def load_broadcast_settings() -> dict:
         logger.error(f"[BROADCAST LOAD ERROR] {e}")
         return {}
 
-
-
-def add_message_record(broadcast_id, chat_id, message_id):
+def add_message_record(broadcast_id, message_ids: dict):
     try:
         conn = sqlite3.connect(VAREON_DB)
         cursor = conn.cursor()
 
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
+        recipients_json = json.dumps(message_ids)
 
         cursor.execute("""
             INSERT INTO broadcast_messages (
                 broadcast_id,
-                telegram_user_id,
-                message_id,
+                recipients,
                 timestamp
             )
-            VALUES (?, ?, ?, ?)
-        """, (broadcast_id, chat_id, message_id, timestamp))
+            VALUES (?, ?, ?)
+        """, (broadcast_id, recipients_json, timestamp))
 
         conn.commit()
         conn.close()

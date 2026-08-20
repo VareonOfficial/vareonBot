@@ -31,6 +31,7 @@ def run_migrations(cursor):
     if current_version < 5:
         # cursor.execute("DROP TABLE IF EXISTS live_logs")
         cursor.execute("DROP TABLE IF EXISTS user_agreements")
+        cursor.execute("DROP TABLE IF EXISTS broadcast_messages")
         cursor.execute("DROP TRIGGER IF EXISTS create_broadcast_entry;")
         cursor.execute("DROP TRIGGER IF EXISTS delete_broadcast_entry;")
         
@@ -50,16 +51,6 @@ def run_migrations(cursor):
                 latest_login_at TIMESTAMP,
                 first_login_at TIMESTAMP,
                 PRIMARY KEY (vareon_id, telegram_user_id)
-            )
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS broadcast_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                broadcast_id TEXT,
-                telegram_user_id INTEGER,
-                message_id INTEGER,
-                timestamp TEXT
             )
         """)
         cursor.execute("""
@@ -210,6 +201,14 @@ def run_migrations(cursor):
                 version           TEXT NOT NULL,
                 accepted_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (telegram_user_id, agreement_type)
+            )
+        """) 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                broadcast_id TEXT UNIQUE,
+                recipients TEXT,
+                timestamp TEXT
             )
         """)
         set_db_version(cursor, 1)

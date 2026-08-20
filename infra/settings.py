@@ -3,8 +3,6 @@ import sqlite3
 from main.config import VAREON_DB, logger, USERS_PATH
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-
-from infra.broadcast import broadcast_settings, save_broadcast_settings
 from main.state import sessions, report_mode
 from main.dir_update import show_download_folder_menu
 ################################

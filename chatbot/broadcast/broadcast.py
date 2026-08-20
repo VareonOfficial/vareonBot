@@ -1,12 +1,12 @@
-import re, sqlite3, html
+import re, sqlite3, html, asyncio
 from datetime import datetime, timezone
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackContext, ConversationHandler, ContextTypes
+from telegram.error import RetryAfter, Forbidden, BadRequest
 
 from main.config import ADMIN_IDS, VAREON_DB, logger
-from main.config import logger
-from main.state import broadcast_mode
+from main.state import broadcast_mode, sessions
 from chatbot.broadcast.helper import load_broadcast_settings, add_message_record
 
 #####Broadcast########
@@ -14,17 +14,21 @@ from chatbot.broadcast.helper import load_broadcast_settings, add_message_record
 # Global variable (load at bot startup)
 broadcast_settings = load_broadcast_settings()
 
+# Pacing between sends to stay under Telegram's outbound rate limit
+BROADCAST_SEND_DELAY = 0.05  # seconds between each send
+
+
 async def broadcast_command(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     if user_id not in ADMIN_IDS:
         return ConversationHandler.END
-    
+
     # Terminate any ongoing conversation
     context.user_data.clear()  # Clear user_data to reset conversation state
     broadcast_mode[user_id] = True
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("❌ Cancel Broadcast", callback_data="cancel_broadcast")]
+        [InlineKeyboardButton("❌ Cancel Broadcast", callback_data="cancel_broadcast_compose")]
     ])
 
     await update.message.reply_text(
@@ -47,14 +51,17 @@ async def broadcast_command(update: Update, context: CallbackContext):
     )
     return ConversationHandler.END
 
+
 async def cancel_broadcast(update: Update, context: CallbackContext):
+    """Cancel while still composing (before any content was sent)."""
     query = update.callback_query
     user_id = query.from_user.id
     await query.answer()
 
     if broadcast_mode.get(user_id):
-        broadcast_mode.pop(user_id)
+        broadcast_mode.pop(user_id, None)
         await query.edit_message_text("❌ Broadcast cancelled.")
+
 
 def msg_format(update: Update, context: CallbackContext):
     message = update.message
@@ -177,9 +184,25 @@ def msg_format(update: Update, context: CallbackContext):
         "button_info": button_info,
     }
 
+
 async def handle_broadcast_message(update: Update, context: CallbackContext):
+    """
+    Fires when the admin sends broadcast content. Instead of sending to all
+    users immediately, this now builds a PREVIEW and sends it back to the
+    admin only, with Confirm/Cancel buttons. The real send only happens
+    after the admin taps Confirm.
+    """
     user_id = update.message.from_user.id
     if user_id not in ADMIN_IDS or not broadcast_mode.get(user_id):
+        return
+
+    # If a preview is already pending confirmation, don't let a stray
+    # message get reparsed as new content — force admin to confirm/cancel first.
+    if context.user_data.get("pending_broadcast"):
+        await update.message.reply_text(
+            "⚠️ You already have a broadcast pending confirmation.\n"
+            "Please tap ✅ Confirm & Send or ❌ Cancel on the preview above first."
+        )
         return
 
     # 1. Parse message data using msg_format
@@ -192,18 +215,119 @@ async def handle_broadcast_message(update: Update, context: CallbackContext):
     text_html = data["text_html"]
     reply_markup = data["reply_markup"]
 
+    # Generate broadcast_id now so it's stable between preview and actual send
     broadcast_id = datetime.now().strftime("%Y%m%d%H%M%S")
+
+    # Store parsed content for the confirm step — nothing sent to users yet
+    context.user_data["pending_broadcast"] = {
+        "broadcast_id": broadcast_id,
+        "media_type": media_type,
+        "file_id": file_id,
+        "text_html": text_html,
+        "reply_markup": reply_markup,
+    }
+
+    # Build preview keyboard: original admin-defined buttons (if any) + Confirm/Cancel row
+    preview_rows = list(reply_markup.inline_keyboard) if reply_markup else []
+    preview_markup = InlineKeyboardMarkup(preview_rows)
+
+    try:
+        if media_type:
+            method = getattr(context.bot, f"send_{media_type}")
+            await method(
+                chat_id=update.effective_chat.id,
+                **{media_type: file_id},
+                caption=text_html,
+                parse_mode="HTML",
+                reply_markup=preview_markup,
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=text_html,
+                parse_mode="HTML",
+                reply_markup=preview_markup,
+            )
+        await update.message.reply_text(
+            "👆 <b>This is a preview</b> — exactly what users will receive.\n"
+            "Tap ✅ to send it to everyone, or ❌ to cancel and compose again.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ Confirm & Send", callback_data="broadcast_confirm_send", style="success"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="broadcast_cancel_preview", style="danger"),
+                ]
+            ]),
+        )
+    except Exception as e:
+        logger.error(f"[BROADCAST_PREVIEW] Failed to build preview: {e}")
+        context.user_data.pop("pending_broadcast", None)
+        await update.message.reply_text(
+            f"❌ Couldn't build preview (likely malformed HTML or an invalid button): {e}\n"
+            f"Please fix your message and try again."
+        )
+
+
+async def broadcast_cancel_preview(update: Update, context: CallbackContext):
+    """
+    Cancel at the PREVIEW stage. Clears the stored pending broadcast so a
+    fresh broadcast message can immediately be composed and reparsed.
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
+    await query.answer("Broadcast cancelled.")
+
+    context.user_data.pop("pending_broadcast", None)
+    # Stay in broadcast_mode so the admin can just send new content right away
+    broadcast_mode[user_id] = True
+
+    await query.edit_message_reply_markup(reply_markup=None)
+    await query.message.reply_text(
+        "❌ Broadcast cancelled. Send a new message whenever you're ready."
+    )
+
+
+async def broadcast_confirm_send(update: Update, context: CallbackContext):
+    """
+    Confirm at the PREVIEW stage — this is the only place that actually
+    sends to all users. Includes flood-wait handling and send pacing.
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
+    await query.answer()
+
+    pending = context.user_data.get("pending_broadcast")
+    if not pending:
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text("⚠️ Nothing pending — this preview has expired or was already sent.")
+        return
+
+    broadcast_id = pending["broadcast_id"]
+    media_type = pending["media_type"]
+    file_id = pending["file_id"]
+    text_html = pending["text_html"]
+    reply_markup = pending["reply_markup"]
+
+    # Lock the preview so it can't be double-confirmed
+    await query.edit_message_reply_markup(reply_markup=None)
+    status_msg = await query.message.reply_text("📤 Sending broadcast... 0 sent so far.")
+
     sent_count, failed_count = 0, 0
+    broadcast_settings_local = load_broadcast_settings()
+    message_ids = {}  # {telegram_id: {"vareon_id": ..., "message_id": ...}} — stored as one JSON blob, not per-row
 
-    broadcast_settings = load_broadcast_settings()
+    targets = [
+        target_id for target_id, prefs in broadcast_settings_local.items()
+        if prefs.get("receive_updates")
+    ]
 
-    # 2. Iterate through users and send formatted broadcast
-    for target_id, prefs in broadcast_settings.items():
-        if prefs.get("receive_updates"):
+    for i, target_id in enumerate(targets, start=1):
+        target_chat_id = int(target_id)
+        sent_msg = None
+
+        # Retry loop: handles Telegram-mandated flood-wait backoff
+        for attempt in range(3):
             try:
-                target_chat_id = int(target_id)
-
-                # Send photo, video, document, etc. dynamically or fallback to text
                 if media_type:
                     method = getattr(context.bot, f"send_{media_type}")
                     sent_msg = await method(
@@ -220,28 +344,61 @@ async def handle_broadcast_message(update: Update, context: CallbackContext):
                         parse_mode="HTML",
                         reply_markup=reply_markup,
                     )
-
-                sent_count += 1
-
-                # Save message ID for later broadcast deletion
-                add_message_record(
-                    broadcast_id, target_id, sent_msg.message_id
+                break  # success, exit retry loop
+            except RetryAfter as e:
+                # Telegram explicitly told us how long to back off — honor it
+                logger.warning(
+                    f"[BROADCAST] Flood control hit, sleeping {e.retry_after}s "
+                    f"before retrying user {target_id}"
                 )
-
+                await asyncio.sleep(e.retry_after + 0.5)
+                continue
+            except (Forbidden, BadRequest) as e:
+                # User blocked the bot, deactivated account, etc. — not retryable
+                logger.error(f"[BROADCAST] Skipping {target_id}: {e}")
+                break
             except Exception as e:
-                failed_count += 1
-                logger.error(f"Broadcast failed for {target_id}: {e}")
+                logger.error(f"[BROADCAST] Unexpected error for {target_id}: {e}")
+                break
 
-    # 3. Clear broadcast state and reply to admin
+        if sent_msg:
+            sent_count += 1
+            vareon_id = sessions.get(target_chat_id, {}).get("vareon_id")
+            message_ids[str(target_id)] = {
+                "vareon_id": vareon_id,
+                "message_id": sent_msg.message_id,
+            }
+        else:
+            failed_count += 1
+
+        # Baseline pacing between every send, success or failure
+        await asyncio.sleep(BROADCAST_SEND_DELAY)
+
+        # Periodic progress update so the admin isn't staring at a frozen message
+        if i % 25 == 0 or i == len(targets):
+            try:
+                await status_msg.edit_text(
+                    f"📤 Sending broadcast... {i}/{len(targets)} processed "
+                    f"(✅ {sent_count} sent, ❌ {failed_count} failed)"
+                )
+            except Exception:
+                pass  # edit failures (e.g. message not modified) are harmless here
+
+    # Save ONE row for this whole broadcast, as a JSON blob
+    add_message_record(broadcast_id, message_ids)
+
+    context.user_data.pop("pending_broadcast", None)
     broadcast_mode.pop(user_id, None)
 
     logger.info(
-        f"Broadcast completed: Sent to {sent_count}, Failed to {failed_count}"
+        f"Broadcast {broadcast_id} completed: Sent to {sent_count}, Failed to {failed_count}"
     )
-    await update.message.reply_text(
-        f"✅ Broadcast sent successfully!\n\n"
+    await status_msg.edit_text(
+        f"✅ <b>Broadcast sent!</b>\n\n"
+        f"🆔 Broadcast ID: <code>{broadcast_id}</code>\n"
         f"📤 Sent to: {sent_count} user(s)\n"
         f"❌ Failed: {failed_count}\n\n"
         f"🗑️ To delete this broadcast for all users, run:\n"
-        f"/deletebroadcast"
+        f"<code>/deletebroadcast {broadcast_id}</code>",
+        parse_mode="HTML",
     )
