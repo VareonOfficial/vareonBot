@@ -13,7 +13,7 @@ def generate_task_id() -> str:
 # =============================================
 # HELPER: Calculate monthly stats from live_logs
 # =============================================
-def _calculate_monthly_stats(cursor, vareon_id, tg_user_id, year, month):
+def _calculate_monthly_stats(cursor, vareon_id, telegram_user_id, year, month):
     month_str = f"{month:02d}"
     year_str = str(year)
 
@@ -21,21 +21,21 @@ def _calculate_monthly_stats(cursor, vareon_id, tg_user_id, year, month):
     cursor.execute("""
         SELECT COUNT(DISTINCT strftime('%Y-%m-%d', timestamp))
         FROM live_logs
-        WHERE vareon_id = ? AND tg_user_id = ?
+        WHERE vareon_id = ? AND telegram_user_id = ?
         AND strftime('%Y', timestamp) = ?
         AND strftime('%m', timestamp) = ?
-    """, (vareon_id, tg_user_id, year_str, month_str))
+    """, (vareon_id, telegram_user_id, year_str, month_str))
     active_days = cursor.fetchone()[0] or 0
 
     # Most active hour
     cursor.execute("""
         SELECT strftime('%H', timestamp) as h, COUNT(*) as cnt
         FROM live_logs
-        WHERE vareon_id = ? AND tg_user_id = ?
+        WHERE vareon_id = ? AND telegram_user_id = ?
         AND strftime('%Y', timestamp) = ?
         AND strftime('%m', timestamp) = ?
         GROUP BY h ORDER BY cnt DESC LIMIT 1
-    """, (vareon_id, tg_user_id, year_str, month_str))
+    """, (vareon_id, telegram_user_id, year_str, month_str))
     hour_row = cursor.fetchone()
     most_active_hour = int(hour_row[0]) if hour_row else None
 
@@ -43,11 +43,11 @@ def _calculate_monthly_stats(cursor, vareon_id, tg_user_id, year, month):
     cursor.execute("""
         SELECT strftime('%w', timestamp) as wd, COUNT(*) as cnt
         FROM live_logs
-        WHERE vareon_id = ? AND tg_user_id = ?
+        WHERE vareon_id = ? AND telegram_user_id = ?
         AND strftime('%Y', timestamp) = ?
         AND strftime('%m', timestamp) = ?
         GROUP BY wd ORDER BY cnt DESC LIMIT 1
-    """, (vareon_id, tg_user_id, year_str, month_str))
+    """, (vareon_id, telegram_user_id, year_str, month_str))
     wday_row = cursor.fetchone()
     most_active_weekday = int(wday_row[0]) if wday_row else None
 
@@ -57,23 +57,23 @@ def _calculate_monthly_stats(cursor, vareon_id, tg_user_id, year, month):
 # =============================================
 # HELPER: Upsert monthly_stats
 # =============================================
-def _update_monthly_stats(cursor, vareon_id, tg_user_id, year, month,
+def _update_monthly_stats(cursor, vareon_id, telegram_user_id, year, month,
                            timestamp_str, event_type, function_name,
                            is_success, is_failed):
 
     # Create row if not exists
     cursor.execute("""
         INSERT OR IGNORE INTO monthly_stats 
-        (vareon_id, tg_user_id, year, month, first_activity, last_activity)
+        (vareon_id, telegram_user_id, year, month, first_activity, last_activity)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (vareon_id, tg_user_id, year, month, timestamp_str, timestamp_str))
+    """, (vareon_id, telegram_user_id, year, month, timestamp_str, timestamp_str))
 
     # Fetch current JSON counters
     cursor.execute("""
         SELECT event_type_counts, function_name_counts
         FROM monthly_stats
-        WHERE vareon_id = ? AND tg_user_id = ? AND year = ? AND month = ?
-    """, (vareon_id, tg_user_id, year, month))
+        WHERE vareon_id = ? AND telegram_user_id = ? AND year = ? AND month = ?
+    """, (vareon_id, telegram_user_id, year, month))
 
     row = cursor.fetchone()
     event_counts = json.loads(row[0] or '{}')
@@ -85,7 +85,7 @@ def _update_monthly_stats(cursor, vareon_id, tg_user_id, year, month,
 
     # Calculate stats fresh from live_logs
     active_days, most_active_hour, most_active_weekday = _calculate_monthly_stats(
-        cursor, vareon_id, tg_user_id, year, month
+        cursor, vareon_id, telegram_user_id, year, month
     )
 
     # Update the row
@@ -100,7 +100,7 @@ def _update_monthly_stats(cursor, vareon_id, tg_user_id, year, month,
             most_active_hour     = ?,
             most_active_weekday  = ?,
             last_activity        = ?
-        WHERE vareon_id = ? AND tg_user_id = ? AND year = ? AND month = ?
+        WHERE vareon_id = ? AND telegram_user_id = ? AND year = ? AND month = ?
     """, (
         is_success, is_failed,
         json.dumps(event_counts),
@@ -109,7 +109,7 @@ def _update_monthly_stats(cursor, vareon_id, tg_user_id, year, month,
         most_active_hour,
         most_active_weekday,
         timestamp_str,
-        vareon_id, tg_user_id, year, month
+        vareon_id, telegram_user_id, year, month
     ))
 
 
@@ -118,7 +118,7 @@ def _update_monthly_stats(cursor, vareon_id, tg_user_id, year, month,
 # =============================================
 def log_to_db(
     vareon_id,
-    tg_user_id: int,
+    telegram_user_id: int,
     event_type: str,
     function_name: str,
     task_id: str = None,
@@ -149,16 +149,16 @@ def log_to_db(
         # ── 1. Insert into live_logs ──────────────────────────
         cursor.execute("""
             INSERT INTO live_logs 
-            (vareon_id, tg_user_id, event_type, function_name, task_id, details, action_status, timestamp)
+            (vareon_id, telegram_user_id, event_type, function_name, task_id, details, action_status, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            vareon_id, tg_user_id, event_type, function_name,
+            vareon_id, telegram_user_id, event_type, function_name,
             task_id, details_json, action_status_json, timestamp_str
         ))
 
         # ── 2. Update monthly_stats ───────────────────────────
         _update_monthly_stats(
-            cursor, vareon_id, tg_user_id, year, month,
+            cursor, vareon_id, telegram_user_id, year, month,
             timestamp_str, event_type, function_name,
             is_success, is_failed
         )
@@ -185,25 +185,25 @@ def log_wrapper(
         async def wrapper(*args, **kwargs):
             start_time = time.time()
 
-            tg_user_id = None
+            telegram_user_id = None
             vareon_id = None
 
             if auto_extract_user and args:
                 first_arg = args[0]
                 if hasattr(first_arg, "effective_user") and first_arg.effective_user:
-                    tg_user_id = first_arg.effective_user.id
+                    telegram_user_id = first_arg.effective_user.id
 
-            tg_user_id = kwargs.get("tg_user_id") or tg_user_id
+            telegram_user_id = kwargs.get("telegram_user_id") or telegram_user_id
             vareon_id = kwargs.get("vareon_id") or vareon_id
 
-            if vareon_id is None and tg_user_id:
+            if vareon_id is None and telegram_user_id:
                 try:
-                    session_data = sessions.get(tg_user_id, {})
+                    session_data = sessions.get(telegram_user_id, {})
                     vareon_id = session_data.get("vareon_id")
                 except:
                     pass
 
-            tg_user_id = tg_user_id or 0
+            telegram_user_id = telegram_user_id or 0
 
             try:
                 if inspect.iscoroutinefunction(func):
@@ -220,7 +220,7 @@ def log_wrapper(
                     latency_ms = int((time.time() - start_time) * 1000)
                     log_to_db(
                         vareon_id=vareon_id,
-                        tg_user_id=tg_user_id,
+                        telegram_user_id=telegram_user_id,
                         event_type=event_type,
                         function_name=fn_name,
                         details=kwargs.get("details", {}),

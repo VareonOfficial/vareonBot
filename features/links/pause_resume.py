@@ -20,7 +20,7 @@ async def pause_download(update: Update, context: CallbackContext):
         vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_PAUSED",
             function_name="pause_download",
             task_id=task_id,
@@ -44,7 +44,7 @@ async def resume_download(update: Update, context: CallbackContext):
         vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_RESUMED",
             function_name="resume_download",
             task_id=task_id,
@@ -91,7 +91,7 @@ async def resume_download(update: Update, context: CallbackContext):
         vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_RESUMED",
             function_name="resume_download",
             task_id=task_id,

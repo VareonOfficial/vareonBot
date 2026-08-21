@@ -131,7 +131,7 @@ async def queue_tdl_task(
     if task_id:
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="QUEUE_JOINED",
             function_name="queue_tdl_task",
             task_id=task_id,
@@ -216,7 +216,7 @@ async def queue_tdl_task(
             if task_id:
                 log_to_db(
                     vareon_id=vareon_id,
-                    tg_user_id=user_id,
+                    telegram_user_id=user_id,
                     event_type="QUEUE_WAIT_COMPLETE",
                     function_name="queue_tdl_task",
                     task_id=task_id,

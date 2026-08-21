@@ -30,18 +30,16 @@ def run_migrations(cursor):
     # ------------------------------
     if current_version < 5:
         # cursor.execute("DROP TABLE IF EXISTS live_logs")
-        cursor.execute("DROP TABLE IF EXISTS user_agreements")
-        cursor.execute("DROP TABLE IF EXISTS broadcast_messages")
+        # cursor.execute("DROP TABLE IF EXISTS user_agreements")
+        # cursor.execute("DROP TABLE IF EXISTS monthly_stats")
+        # cursor.execute("DROP TABLE IF EXISTS yearly_stats")
+        # cursor.execute("DROP TABLE IF EXISTS broadcast_messages")
         cursor.execute("DROP TRIGGER IF EXISTS create_broadcast_entry;")
         cursor.execute("DROP TRIGGER IF EXISTS delete_broadcast_entry;")
         
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS restore_users (
-                telegram_id INTEGER PRIMARY KEY,
-                username TEXT,
-                vareon_id INTEGER
-            )
-        """)
+        # cursor.execute("ALTER TABLE telegram_auth RENAME COLUMN latest_login_at TO last_used_at;")
+        # cursor.execute("ALTER TABLE telegram_auth RENAME COLUMN first_login_at TO logged_in_at ;")       
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS telegram_auth (
                 vareon_id INTEGER,
@@ -51,6 +49,24 @@ def run_migrations(cursor):
                 latest_login_at TIMESTAMP,
                 first_login_at TIMESTAMP,
                 PRIMARY KEY (vareon_id, telegram_user_id)
+            )
+        """)
+        cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_update_last_used
+            AFTER INSERT ON live_logs
+            FOR EACH ROW
+            BEGIN
+                UPDATE telegram_auth
+                SET last_used_at = NEW.timestamp
+                WHERE vareon_id = NEW.vareon_id
+                AND telegram_user_id = NEW.telegram_user_id;
+            END;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS restore_users (
+                telegram_id INTEGER PRIMARY KEY,
+                username TEXT,
+                vareon_id INTEGER
             )
         """)
         cursor.execute("""
@@ -99,7 +115,7 @@ def run_migrations(cursor):
             CREATE TABLE IF NOT EXISTS live_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vareon_id TEXT NOT NULL,
-                tg_user_id INTEGER,
+                telegram_user_id INTEGER,
                 function_name TEXT,
                 event_type TEXT,
                 task_id TEXT DEFAULT NULL,
@@ -114,7 +130,7 @@ def run_migrations(cursor):
             CREATE TABLE IF NOT EXISTS monthly_stats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vareon_id TEXT NOT NULL,
-                tg_user_id INTEGER NOT NULL,
+                telegram_user_id INTEGER NOT NULL,
                 year INTEGER NOT NULL,
                 month INTEGER NOT NULL,  -- 1-12
 
@@ -132,14 +148,14 @@ def run_migrations(cursor):
                 first_activity DATETIME DEFAULT NULL,
                 last_activity DATETIME DEFAULT NULL,
 
-                UNIQUE(vareon_id, tg_user_id, year, month)
+                UNIQUE(vareon_id, telegram_user_id, year, month)
             )
         """)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS yearly_stats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vareon_id TEXT NOT NULL,
-                tg_user_id INTEGER NOT NULL,
+                telegram_user_id INTEGER NOT NULL,
                 year INTEGER NOT NULL,
 
                 total_actions INTEGER DEFAULT 0,
@@ -158,7 +174,7 @@ def run_migrations(cursor):
                 first_activity DATETIME DEFAULT NULL,
                 last_activity DATETIME DEFAULT NULL,
 
-                UNIQUE(vareon_id, tg_user_id, year)
+                UNIQUE(vareon_id, telegram_user_id, year)
             )
         """)
         cursor.execute("""

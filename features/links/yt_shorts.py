@@ -146,7 +146,7 @@ async def handle_shorts_download(update: Update = None, context: ContextTypes.DE
     context.user_data["download_start_time"] = time.time()
     log_to_db(
         vareon_id=vareon_id,
-        tg_user_id=user_id,
+        telegram_user_id=user_id,
         event_type="DOWNLOAD_STARTED",
         function_name="handle_shorts_download",
         task_id=task_id,
@@ -302,7 +302,7 @@ async def _run_shorts_download(
             duration = int(time.time() - context.user_data.get("download_start_time", time.time()))
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type="DOWNLOAD_CANCELED",
                 function_name="_run_shorts_download",
                 task_id=task_id,
@@ -362,7 +362,7 @@ async def _run_shorts_download(
         # ── Log FILE_INFO (post-download) ──────────────────────────────────
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="FILE_INFO",
             function_name="_run_shorts_download",
             task_id=task_id,
@@ -380,7 +380,7 @@ async def _run_shorts_download(
         # ── Log DOWNLOAD_COMPLETE ──────────────────────────────────────────
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_COMPLETE",
             function_name="_run_shorts_download",
             task_id=task_id,
@@ -407,7 +407,7 @@ async def _run_shorts_download(
         duration = int(time.time() - context.user_data.get("download_start_time", time.time()))
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_ERROR",
             function_name="_run_shorts_download",
             task_id=task_id,
@@ -447,7 +447,7 @@ async def _upload_short_to_telegram(
     try:
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="UPLOAD_STARTED",
             function_name="_upload_short_to_telegram",
             task_id=task_id,
@@ -459,11 +459,12 @@ async def _upload_short_to_telegram(
         tmp_dir = os.path.dirname(file_path)
 
         await run_tdl_upload(
-            progress_msg=status_msg,
             path=tmp_dir,
             file_name=file_name,
             context=context,
             user_id=user_id,
+            task_id=task_id,
+            progress_msg=status_msg,
             vareon_id=vareon_id,
         )
 
@@ -477,7 +478,7 @@ async def _upload_short_to_telegram(
 
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="UPLOAD_COMPLETE",
             function_name="_upload_short_to_telegram",
             task_id=task_id,
@@ -501,7 +502,7 @@ async def _upload_short_to_telegram(
         upload_duration = int(time.time() - upload_start)
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="UPLOAD_ERROR",
             function_name="_upload_short_to_telegram",
             task_id=task_id,

@@ -252,7 +252,7 @@ async def move_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="MULTI_MOVE",
             function_name="move_here",
             task_id=context.user_data.get("task_id"),
@@ -352,7 +352,7 @@ async def move_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["last_action"] = "refresh"
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type="MOVE",
                 function_name="move_here",
                 task_id=context.user_data.get("task_id"),
@@ -374,7 +374,7 @@ async def move_here(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"❌ Failed to move {item_type}: {str(e)}")
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type="PROCESS_FAILED",
                 function_name="move_here",
                 task_id=context.user_data.get("task_id"),

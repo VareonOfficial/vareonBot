@@ -217,7 +217,7 @@ async def storage(update: Update, context: CallbackContext):
         dashboard, log_details = build_storage_dashboard(vareon_id)
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="STORAGE_INSIGHT",
             function_name="storage",
             task_id=None,
@@ -228,7 +228,7 @@ async def storage(update: Update, context: CallbackContext):
         logger.error(f"Storage fetch failed for {session_data}: {e}")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="STORAGE_INSIGHT",
             function_name="storage",
             task_id=None,

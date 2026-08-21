@@ -49,8 +49,8 @@ from vareon_analytics.vr_log import log_wrapper
 from vareon_analytics.export_data import handle_export_data
 from main.dir_update import (navigate_folder, navigate_back, show_download_folder_menu, handle_download_here_callback,
                              handle_folder_page_navigation)
-from chatbot.broadcast.broadcast import (broadcast_settings, broadcast_command, handle_broadcast_message, cancel_broadcast,
-    broadcast_cancel_preview, broadcast_confirm_send)
+from chatbot.broadcast.broadcast import (broadcast_settings, broadcast_command, handle_broadcast_message, broadcast_cancel,
+    broadcast_confirm_send)
 from chatbot.broadcast.helper import delete_broadcast
 from infra.settings import settings, handle_toggle_receive_updates, handle_toggle_default_dl
 from databases.databases_config import init_db
@@ -719,11 +719,10 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("deletebroadcast", delete_broadcast))
 
     application.add_handler(MessageHandler(filters.ALL & filters.User(user_id=list(ADMIN_IDS)), handle_broadcast_message,), group=-4)
-    application.add_handler(CallbackQueryHandler(broadcast_cancel_preview, pattern="^broadcast_cancel_preview$"))
+    application.add_handler(CallbackQueryHandler(broadcast_cancel, pattern="^broadcast_cancel$"))
     application.add_handler(CallbackQueryHandler(broadcast_confirm_send, pattern="^broadcast_confirm_send$"))
     application.add_handler(CallbackQueryHandler(_common_menu_handler, pattern="^_common_menu:"))
     application.add_handler(CallbackQueryHandler(close_stats,          pattern="close_stats"))
-    application.add_handler(CallbackQueryHandler(cancel_broadcast,     pattern="^cancel_broadcast$"))
     application.add_handler(CallbackQueryHandler(youtube_quality_callback, pattern="^yt_quality\\|.*$"))
     
 ################################

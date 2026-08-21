@@ -93,7 +93,7 @@ async def delete(update, context, vareon_id):
 
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DELETE",
             function_name="delete",
             task_id=None,
@@ -110,7 +110,7 @@ async def delete(update, context, vareon_id):
         await query.edit_message_text(f"❌ Error moving to trash: {str(e)}")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="PROCESS_FAILED",
             function_name="delete",
             task_id=None,
@@ -183,7 +183,7 @@ async def multi_delete(update, context, vareon_id):
     task_id = generate_task_id()
     log_to_db(
         vareon_id=vareon_id,
-        tg_user_id=user_id,
+        telegram_user_id=user_id,
         event_type="MULTI_DELETE",
         function_name="multi_delete",
         task_id=task_id,
@@ -322,7 +322,7 @@ async def handle_rename_input(update: Update, context: CallbackContext) -> int:
 
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="RENAME",
             function_name="handle_rename_input",
             task_id=None,
@@ -343,7 +343,7 @@ async def handle_rename_input(update: Update, context: CallbackContext) -> int:
         await update.message.reply_text(f"❌ Failed to rename: {str(e)}")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="PROCESS_FAILED",
             function_name="handle_rename_input",
             task_id=None,
@@ -396,7 +396,7 @@ async def get_link(update: Update, context: CallbackContext):
         if response.status_code != 200:
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=telegram_user_id,
+                telegram_user_id=telegram_user_id,
                 event_type="PROCESS_FAILED",
                 function_name="get_link",
                 task_id=task_id,
@@ -421,7 +421,7 @@ async def get_link(update: Update, context: CallbackContext):
 
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=telegram_user_id,
+            telegram_user_id=telegram_user_id,
             event_type="GET_LINK",
             function_name="get_link",
             task_id=task_id,
@@ -452,7 +452,7 @@ async def get_link(update: Update, context: CallbackContext):
         logger.error(f"Bot Error (get_link): {e}")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=telegram_user_id,
+            telegram_user_id=telegram_user_id,
             event_type="PROCESS_FAILED",
             function_name="get_link",
             task_id=task_id,
@@ -498,7 +498,7 @@ async def cancel_generated_link(update: Update, context: CallbackContext):
             context.user_data.pop(f"link_{short_id}", None)
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=telegram_user_id,
+                telegram_user_id=telegram_user_id,
                 event_type="LINK_CANCELLED",
                 function_name="cancel_generated_link",
                 task_id=task_id,
@@ -511,7 +511,7 @@ async def cancel_generated_link(update: Update, context: CallbackContext):
         else:
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=telegram_user_id,
+                telegram_user_id=telegram_user_id,
                 event_type="PROCESS_FAILED",
                 function_name="cancel_generated_link",
                 task_id=task_id,
@@ -527,7 +527,7 @@ async def cancel_generated_link(update: Update, context: CallbackContext):
         logger.error(f"Bot Error (cancel_link): {e}")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=telegram_user_id,
+            telegram_user_id=telegram_user_id,
             event_type="PROCESS_FAILED",
             function_name="cancel_generated_link",
             task_id=task_id,
@@ -630,7 +630,7 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
         # ── Log success ──────────────────────────────────────────────────────
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="NEW_FOLDER",
             function_name="handle_new_folder_input",
             task_id=None,
@@ -655,7 +655,7 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
         )
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="PROCESS_FAILED",
             function_name="handle_new_folder_input",
             task_id=None,
@@ -670,7 +670,7 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
         )
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="PROCESS_FAILED",
             function_name="handle_new_folder_input",
             task_id=None,
@@ -687,7 +687,7 @@ async def handle_new_folder_input(update: Update, context: ContextTypes.DEFAULT_
         )
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="PROCESS_FAILED",
             function_name="handle_new_folder_input",
             task_id=None,

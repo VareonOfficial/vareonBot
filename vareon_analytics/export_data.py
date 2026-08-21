@@ -27,7 +27,7 @@ def _fetch_user_logs(vareon_id: str) -> list:
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT event_type, details, action_status, timestamp, tg_user_id
+            SELECT event_type, details, action_status, timestamp, telegram_user_id
             FROM live_logs
             WHERE vareon_id = ?
             ORDER BY timestamp ASC
@@ -45,7 +45,7 @@ def _fetch_summary(vareon_id: str) -> dict:
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT COUNT(*), MIN(timestamp), MAX(timestamp), GROUP_CONCAT(DISTINCT tg_user_id)
+            SELECT COUNT(*), MIN(timestamp), MAX(timestamp), GROUP_CONCAT(DISTINCT telegram_user_id)
             FROM live_logs
             WHERE vareon_id = ?
         """, (vareon_id,))
@@ -64,7 +64,7 @@ def _fetch_summary(vareon_id: str) -> dict:
 # =============================================
 # CORE: Build PDF
 # =============================================
-def generate_export_pdf(vareon_id: str, tg_user_id: int, output_path: str) -> bool:
+def generate_export_pdf(vareon_id: str, telegram_user_id: int, output_path: str) -> bool:
     logs = _fetch_user_logs(vareon_id)
     summary = _fetch_summary(vareon_id)
 
@@ -259,10 +259,10 @@ def generate_export_pdf(vareon_id: str, tg_user_id: int, output_path: str) -> bo
 # TELEGRAM HANDLER: /export_data command
 # =============================================
 async def handle_export_data(update, context):
-    tg_user_id = update.effective_user.id
+    telegram_user_id = update.effective_user.id
     from main.state import sessions
 
-    session = sessions.get(tg_user_id, {})
+    session = sessions.get(telegram_user_id, {})
     vareon_id = session.get("vareon_id")
 
     if not vareon_id:
@@ -275,10 +275,10 @@ async def handle_export_data(update, context):
     msg = await update.message.reply_text("⏳ Generating your data export, please wait...")
 
     # Output path — temp file
-    output_path = f"/tmp/vareon_export_{vareon_id}_{tg_user_id}.pdf"
+    output_path = f"/tmp/vareon_export_{vareon_id}_{telegram_user_id}.pdf"
 
 
-    success = generate_export_pdf(vareon_id, tg_user_id, output_path)
+    success = generate_export_pdf(vareon_id, telegram_user_id, output_path)
 
     if not success or not os.path.exists(output_path):
         await msg.edit_text("❌ Failed to generate your data export. Please try again later.")

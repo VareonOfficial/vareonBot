@@ -107,7 +107,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vareon_id = session_data["vareon_id"]
     log_to_db(
         vareon_id=vareon_id,
-        tg_user_id=user_id,
+        telegram_user_id=user_id,
         event_type="FILE_RECEIVED",
         function_name="handle_file",
         task_id=task_id,
@@ -157,7 +157,7 @@ async def run_tdl_download(progress_msg, url, path, file_name, context, user_id,
     if vareon_id and task_id:
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_PATH_SELECTED",
             function_name="run_tdl_download",
             task_id=task_id,
@@ -313,7 +313,7 @@ async def _do_download(user_id: int, progress_msg, url, path, file_name, context
         if task_id and vareon_id:
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type="DOWNLOAD_CANCELED",
                 function_name="_do_download",
                 task_id=task_id,
@@ -413,7 +413,7 @@ async def _do_download(user_id: int, progress_msg, url, path, file_name, context
             if task_id:
                 log_to_db(
                     vareon_id=vareon_id,
-                    tg_user_id=user_id,
+                    telegram_user_id=user_id,
                     event_type="DOWNLOAD_COMPLETE",
                     function_name="_do_download",
                     task_id=task_id,
@@ -444,7 +444,7 @@ async def _do_download(user_id: int, progress_msg, url, path, file_name, context
             if task_id:
                 log_to_db(
                     vareon_id=vareon_id,
-                    tg_user_id=user_id,
+                    telegram_user_id=user_id,
                     event_type="DOWNLOAD_ERROR",
                     function_name="_do_download",
                     task_id=task_id,

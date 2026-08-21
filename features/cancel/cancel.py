@@ -36,7 +36,7 @@ async def cancel_process(update: Update, context: CallbackContext):
             vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type="PROCESS_CANCELED",
                 function_name="cancel_process",
                 task_id=None,
@@ -220,7 +220,7 @@ async def cancel_link_download(update, context, download_id: str, user_id: int):
         )
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_CANCELED",
             function_name="cancel_link_download",
             task_id=context.user_data.get("task_id"),

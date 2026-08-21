@@ -87,7 +87,7 @@ async def scrape_youtube_to_download(
         
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=update.effective_user.id,
+            telegram_user_id=update.effective_user.id,
             event_type="MUSIC_INFO",
             function_name="scrape_youtube_to_download",
             task_id=task_id,
@@ -117,7 +117,7 @@ async def scrape_youtube_to_download(
             rc, err = await run_download(
                 cmd, idx, total, progress_msg, task_id,
                 vareon_id=vareon_id,
-                tg_user_id=update.effective_user.id,
+                telegram_user_id=update.effective_user.id,
                 tracks_completed=completed,
             )
 
@@ -169,7 +169,7 @@ async def scrape_youtube_to_download(
         # ── After loop, one single log ──────────────────────────────────
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=update.effective_user.id,
+            telegram_user_id=update.effective_user.id,
             event_type="DOWNLOAD_SESSION_COMPLETE",
             function_name="scrape_youtube_to_download",
             task_id=task_id,
@@ -183,7 +183,7 @@ async def scrape_youtube_to_download(
         if tasks_fired > 0:
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=update.effective_user.id,
+                telegram_user_id=update.effective_user.id,
                 event_type="UPLOAD_SESSION_FIRED",
                 function_name="scrape_youtube_to_download",
                 task_id=task_id,
@@ -198,7 +198,7 @@ async def scrape_youtube_to_download(
     else:
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=update.effective_user.id,
+            telegram_user_id=update.effective_user.id,
             event_type="MUSIC_INFO",
             function_name="scrape_youtube_to_download",
             task_id=task_id,
@@ -214,12 +214,12 @@ async def scrape_youtube_to_download(
         rc, err = await run_download(
             cmd, 1, 1, progress_msg, task_id,
             vareon_id=vareon_id,
-            tg_user_id=update.effective_user.id,)
+            telegram_user_id=update.effective_user.id,)
 
         if rc == 0:
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=update.effective_user.id,
+                telegram_user_id=update.effective_user.id,
                 event_type="DOWNLOAD_COMPLETE",
                 function_name="scrape_youtube_to_download",
                 task_id=task_id,
@@ -257,7 +257,7 @@ async def scrape_youtube_to_download(
 
                 log_to_db(
                     vareon_id=vareon_id,
-                    tg_user_id=update.effective_user.id,
+                    telegram_user_id=update.effective_user.id,
                     event_type="UPLOAD_SESSION_COMPLETE",
                     function_name="scrape_youtube_to_download",
                     task_id=task_id,

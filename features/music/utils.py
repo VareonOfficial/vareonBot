@@ -8,7 +8,7 @@ from features.myfiles.upload import run_tdl_upload
 from telethon.tl.types import DocumentAttributeAudio, DocumentAttributeFilename
 import mimetypes
 from main.config import logger
-from vareon_analytics.vr_log import log_to_db
+from vareon_analytics.vr_log import log_to_db, generate_task_id
 
 import urllib.parse as up
 
@@ -169,7 +169,7 @@ async def update_progress(
         logger.debug("update_progress edit_text skipped: %s", exc)
 
 async def run_download(cmd, idx, total_tracks, progress_msg, task_id,
-                       vareon_id=None, tg_user_id=None, tracks_completed=0):
+                       vareon_id=None, telegram_user_id=None, tracks_completed=0):
     if "--newline" not in cmd:
         cmd.insert(1, "--newline")
 
@@ -280,10 +280,10 @@ async def run_download(cmd, idx, total_tracks, progress_msg, task_id,
     if process.returncode != 0:
         logger.error(f"[yt-dlp] rc={process.returncode}\n{error_text}")
 
-        if vareon_id and tg_user_id:
+        if vareon_id and telegram_user_id:
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=tg_user_id,
+                telegram_user_id=telegram_user_id,
                 event_type="DOWNLOAD_ERROR",
                 function_name="run_download",
                 task_id=task_id,
@@ -303,11 +303,12 @@ async def upload_song_to_telegram(file_path, title, artist, user_id, context, pr
     file_name = os.path.basename(file_path)
     tmp_dir = os.path.dirname(file_path)
     size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-
+    task_id = generate_task_id() if task_id is None else task_id
+    
     try:
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="UPLOAD_STARTED",
             function_name="upload_song_to_telegram",
             task_id=task_id,
@@ -321,6 +322,7 @@ async def upload_song_to_telegram(file_path, title, artist, user_id, context, pr
             file_name=file_name,
             context=context,
             user_id=user_id,
+            task_id=task_id,
             progress_msg=progress_msg,
             vareon_id=vareon_id,
         )
@@ -335,7 +337,7 @@ async def upload_song_to_telegram(file_path, title, artist, user_id, context, pr
 
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="UPLOAD_COMPLETE",
             function_name="upload_song_to_telegram",
             task_id=task_id,
@@ -360,7 +362,7 @@ async def upload_song_to_telegram(file_path, title, artist, user_id, context, pr
         logger.exception("[MUSIC] Upload failed:")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="UPLOAD_ERROR",
             function_name="upload_song_to_telegram",
             task_id=task_id,

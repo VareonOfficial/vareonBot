@@ -250,7 +250,7 @@ async def youtube_quality_callback(update: Update, context: ContextTypes.DEFAULT
     context.user_data["download_start_time"] = time.time()
     log_to_db(
         vareon_id=vareon_id,
-        tg_user_id=user_id,
+        telegram_user_id=user_id,
         event_type="DOWNLOAD_STARTED",
         function_name="youtube_quality_callback",
         task_id=context.user_data.get("task_id"),
@@ -377,7 +377,7 @@ async def start_youtube_download(
         stderr = await proc.stderr.read()
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="FILE_INFO",
             function_name="youtube_quality_callback",
             task_id=context.user_data.get("task_id"),
@@ -398,7 +398,7 @@ async def start_youtube_download(
             duration = int(time.time() - context.user_data.get('download_start_time', time.time())) if context else 0
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type='DOWNLOAD_CANCELED',
                 function_name='start_youtube_download',
                 task_id=task_id,
@@ -484,7 +484,7 @@ async def start_youtube_download(
         duration = int(time.time() - context.user_data.get('download_start_time', time.time())) if context else 0
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type='DOWNLOAD_COMPLETE',
             function_name='start_youtube_download',
             task_id=task_id,
@@ -509,7 +509,7 @@ async def start_youtube_download(
         duration = int(time.time() - context.user_data.get('download_start_time', time.time())) if context else 0
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type='DOWNLOAD_ERROR',
             function_name='start_youtube_download',
             task_id=task_id,

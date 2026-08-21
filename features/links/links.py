@@ -88,7 +88,7 @@ async def link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, url: 
     vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
     log_to_db(
         vareon_id=vareon_id,
-        tg_user_id=user_id,
+        telegram_user_id=user_id,
         event_type="LINK_RECEIVED",
         function_name="link_handler",
         task_id=task_id,
@@ -146,7 +146,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
                     log_to_db(
                         vareon_id=vareon_id,
-                        tg_user_id=user_id,
+                        telegram_user_id=user_id,
                         event_type="PATH_SELECTED",
                         function_name="handle_link",
                         task_id=task_id,
@@ -323,7 +323,7 @@ async def download_button_handler(update: Update, context: ContextTypes.DEFAULT_
             vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type="PATH_SELECTED",
                 function_name="download_button_handler",
                 task_id=task_id,
@@ -389,7 +389,7 @@ async def download_button_handler(update: Update, context: ContextTypes.DEFAULT_
         vareon_id = sessions.get(user_id, {}).get("vareon_id", "unknown")
         log_to_db(
             vareon_id=vareon_id,
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             function_name="download_button_handler",
             event_type="DOWNLOAD_STARTED",
             task_id=task_id,

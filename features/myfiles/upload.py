@@ -16,7 +16,7 @@ from telethon.tl.functions.channels import JoinChannelRequest
 from main.config import logger, STORAGE_PATH, PRIVATE_GROUP_ID, VAREON_DB, PRIVATE_GROUP_LINK
 from main.utils import format_size
 from features.files.tdl_queue import queue_tdl_task
-from vareon_analytics.vr_log import log_to_db, generate_task_id
+from vareon_analytics.vr_log import log_to_db
 
 def _init_pending_uploads_table():
     """Ensure pending_uploads table exists."""
@@ -40,7 +40,7 @@ _init_pending_uploads_table()
 _telethon_lock = asyncio.Lock()
 
 
-async def run_tdl_upload(path, file_name, context, user_id, progress_msg=None, vareon_id=None):
+async def run_tdl_upload(path, file_name, context, user_id, task_id, progress_msg=None, vareon_id=None):
     """
     Public entry-point for uploads.
     Prepares the file, then hands control to the shared tdl queue.
@@ -92,10 +92,9 @@ async def run_tdl_upload(path, file_name, context, user_id, progress_msg=None, v
         await progress_msg.edit_text("❌ Failed to prepare upload. Please try again.")
         return
 
-    task_id = generate_task_id()
     log_to_db(
         vareon_id=vareon_id,
-        tg_user_id=user_id,
+        telegram_user_id=user_id,
         event_type="UPLOAD_STARTED",
         function_name="run_tdl_upload",
         task_id=task_id,
@@ -272,7 +271,7 @@ async def _do_upload(
         if returncode == 0 and upload_started and not cancelled:
             log_to_db(
                 vareon_id=vareon_id,
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type="UPLOAD_COMPLETED",
                 function_name="_do_upload",
                 task_id=task_id,
@@ -305,7 +304,7 @@ async def _do_upload(
             if cancelled:
                 log_to_db(
                     vareon_id=vareon_id,
-                    tg_user_id=user_id,
+                    telegram_user_id=user_id,
                     event_type="PROCESS_CANCELED",
                     function_name="_do_upload",
                     task_id=task_id,
@@ -323,7 +322,7 @@ async def _do_upload(
                 )
                 log_to_db(
                     vareon_id=vareon_id,
-                    tg_user_id=user_id,
+                    telegram_user_id=user_id,
                     event_type="PROCESS_FAILED",
                     function_name="_do_upload",
                     task_id=task_id,

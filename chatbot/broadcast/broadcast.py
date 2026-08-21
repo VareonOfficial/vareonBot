@@ -28,7 +28,7 @@ async def broadcast_command(update: Update, context: CallbackContext):
     broadcast_mode[user_id] = True
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("❌ Cancel Broadcast", callback_data="cancel_broadcast_compose")]
+        [InlineKeyboardButton("❌ Cancel Broadcast", callback_data="broadcast_cancel", style="danger")]
     ])
 
     await update.message.reply_text(
@@ -52,17 +52,36 @@ async def broadcast_command(update: Update, context: CallbackContext):
     return ConversationHandler.END
 
 
-async def cancel_broadcast(update: Update, context: CallbackContext):
-    """Cancel while still composing (before any content was sent)."""
+async def broadcast_cancel(update: Update, context: CallbackContext):
+    """
+    Single cancel handler for the entire broadcast flow. Works whether
+    the admin is still composing (broadcast_mode active, nothing sent yet)
+    or reviewing a preview (pending_broadcast set) — decides which state
+    it's cancelling based on what's currently stored, so only one
+    callback_data / one registration is needed anywhere in the flow.
+    """
     query = update.callback_query
     user_id = query.from_user.id
-    await query.answer()
+    
+    had_pending = context.user_data.pop("pending_broadcast", None)
 
-    if broadcast_mode.get(user_id):
+    # Remove the now-stale preview/compose message entirely rather than
+    # leaving it dangling with no buttons
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+
+    if had_pending:
+        await query.message.chat.send_message(
+            "❌ Broadcast preview cancelled. Send a new message whenever you're ready.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel Broadcast", callback_data="broadcast_cancel", style="danger")]])
+        )    
+    else:
+        await query.answer("Broadcast cancelled.")
+        await query.message.chat.send_message("❌ Broadcast cancelled.")
         broadcast_mode.pop(user_id, None)
-        await query.edit_message_text("❌ Broadcast cancelled.")
-
-
+        
 def msg_format(update: Update, context: CallbackContext):
     message = update.message
     if not message:
@@ -97,12 +116,14 @@ def msg_format(update: Update, context: CallbackContext):
     raw_html = (
         message.caption_html if media_type else message.text_html
     ) or ""
-
+    
     # 3. Parse lines: separate message text from lines containing '::'
     text_lines = []
     keyboard = []
     code_rows = []
     button_info = []
+
+    VALID_STYLES = {"success", "danger", "primary"}
 
     for line in raw_html.splitlines():
         if "::" in line:
@@ -114,7 +135,11 @@ def msg_format(update: Update, context: CallbackContext):
 
             for btn_str in raw_buttons:
                 if "::" in btn_str:
-                    text_part, target_part = btn_str.split("::", 1)
+                    # Split into max 3 parts: text, target, optional style
+                    parts = btn_str.split("::")
+                    text_part = parts[0]
+                    target_part = parts[1] if len(parts) > 1 else ""
+                    style_part = parts[2] if len(parts) > 2 else ""
 
                     # Clean button text label
                     b_text = re.sub(r"<[^>]+>", "", text_part).strip()
@@ -131,30 +156,43 @@ def msg_format(update: Update, context: CallbackContext):
 
                     c_target = html.unescape(c_target)
 
+                    # Extract and validate optional button style
+                    b_style = re.sub(r"<[^>]+>", "", style_part).strip().lower()
+                    b_style = html.unescape(b_style)
+                    if b_style not in VALID_STYLES:
+                        b_style = None
+
+                    # Build kwargs for InlineKeyboardButton
+                    btn_kwargs = {}
+                    if b_style:
+                        btn_kwargs["style"] = b_style
+
+                    style_code = f", style={b_style!r}" if b_style else ""
+
                     # Determine URL vs Callback Data
                     if c_target.startswith("http://") or c_target.startswith(
                         "https://"
                     ):
                         row_buttons.append(
-                            InlineKeyboardButton(text=b_text, url=c_target)
+                            InlineKeyboardButton(text=b_text, url=c_target, **btn_kwargs)
                         )
                         row_code_btns.append(
-                            f"InlineKeyboardButton(text={b_text!r}, url={c_target!r})"
+                            f"InlineKeyboardButton(text={b_text!r}, url={c_target!r}{style_code})"
                         )
                         button_info.append(
-                            f"text={b_text!r}, url={c_target!r}"
+                            f"text={b_text!r}, url={c_target!r}{style_code}"
                         )
                     else:
                         row_buttons.append(
                             InlineKeyboardButton(
-                                text=b_text, callback_data=c_target
+                                text=b_text, callback_data=c_target, **btn_kwargs
                             )
                         )
                         row_code_btns.append(
-                            f"InlineKeyboardButton(text={b_text!r}, callback_data={c_target!r})"
+                            f"InlineKeyboardButton(text={b_text!r}, callback_data={c_target!r}{style_code})"
                         )
                         button_info.append(
-                            f"text={b_text!r}, callback={c_target!r}"
+                            f"text={b_text!r}, callback={c_target!r}{style_code}"
                         )
 
             if row_buttons:
@@ -175,6 +213,7 @@ def msg_format(update: Update, context: CallbackContext):
     else:
         reply_markup = None
         keyboard_code_str = "None"
+
     return {
         "user_id": user.id,
         "media_type": media_type,
@@ -183,7 +222,6 @@ def msg_format(update: Update, context: CallbackContext):
         "reply_markup": reply_markup,
         "button_info": button_info,
     }
-
 
 async def handle_broadcast_message(update: Update, context: CallbackContext):
     """
@@ -255,7 +293,7 @@ async def handle_broadcast_message(update: Update, context: CallbackContext):
             reply_markup=InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("✅ Confirm & Send", callback_data="broadcast_confirm_send", style="success"),
-                    InlineKeyboardButton("❌ Cancel", callback_data="broadcast_cancel_preview", style="danger"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="broadcast_cancel", style="danger"),
                 ]
             ]),
         )
@@ -266,26 +304,6 @@ async def handle_broadcast_message(update: Update, context: CallbackContext):
             f"❌ Couldn't build preview (likely malformed HTML or an invalid button): {e}\n"
             f"Please fix your message and try again."
         )
-
-
-async def broadcast_cancel_preview(update: Update, context: CallbackContext):
-    """
-    Cancel at the PREVIEW stage. Clears the stored pending broadcast so a
-    fresh broadcast message can immediately be composed and reparsed.
-    """
-    query = update.callback_query
-    user_id = query.from_user.id
-    await query.answer("Broadcast cancelled.")
-
-    context.user_data.pop("pending_broadcast", None)
-    # Stay in broadcast_mode so the admin can just send new content right away
-    broadcast_mode[user_id] = True
-
-    await query.edit_message_reply_markup(reply_markup=None)
-    await query.message.reply_text(
-        "❌ Broadcast cancelled. Send a new message whenever you're ready."
-    )
-
 
 async def broadcast_confirm_send(update: Update, context: CallbackContext):
     """
@@ -308,9 +326,11 @@ async def broadcast_confirm_send(update: Update, context: CallbackContext):
     text_html = pending["text_html"]
     reply_markup = pending["reply_markup"]
 
-    # Lock the preview so it can't be double-confirmed
-    await query.edit_message_reply_markup(reply_markup=None)
-    status_msg = await query.message.reply_text("📤 Sending broadcast... 0 sent so far.")
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+    status_msg = await query.message.chat.send_message("📤 Sending broadcast... 0 sent so far.")
 
     sent_count, failed_count = 0, 0
     broadcast_settings_local = load_broadcast_settings()

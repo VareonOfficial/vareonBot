@@ -198,7 +198,7 @@ async def download_file_with_progress(context, query, message_id, file_info, dow
         duration = int(time.time() - context.user_data.get("download_start_time", time.time()))
         log_to_db(
             vareon_id=user_data.get("vareon_id", "unknown"),
-            tg_user_id=user_id,
+            telegram_user_id=user_id,
             event_type="DOWNLOAD_COMPLETE",
             function_name="download_file_with_progress",
             task_id=context.user_data.get("task_id"),
@@ -240,7 +240,7 @@ async def download_file_with_progress(context, query, message_id, file_info, dow
             duration = int(time.time() - context.user_data.get('download_start_time', time.time()))
             log_to_db(
                 vareon_id=user_data.get('vareon_id', 'unknown'),
-                tg_user_id=user_id,
+                telegram_user_id=user_id,
                 event_type='DOWNLOAD_ERROR',
                 function_name='download_file_with_progress',
                 task_id=context.user_data.get('task_id'),
